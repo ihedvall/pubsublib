@@ -19,13 +19,13 @@ SPDX-License-Identifier: MIT
 
 https://github.com/libexpat/libexpat/blob/master/expat/COPYING
 
-### Iconv
+### Eclipse Paho MQTT C  
 
-Unicode converter (inherited boost dependency)
+MQTT C Library
 
-SPDX-License-Identifier: LGPL-3.0-or-later
+SPDX-License-Identifier: EPL-2.0
 
-https://www.gnu.org/licenses/lgpl-3.0-standalone.html
+https://github.com/eclipse/paho.mqtt.c/blob/master/LICENSE
 
 ### OpenSSL
 
@@ -35,23 +35,6 @@ SPDX-License-Identifier: OpenSSL
 
 https://www.openssl.org/source/license.html
 
-### ZLIB
-
-Compression library.
-
-SPDX-License-Identifier: Zlib
-
-https://www.zlib.net/zlib_license.html
-
-https://opensource.org/licenses/Zlib
-
-### WxWidgets
-
-Cross-platform GUI library.
-
-License: wxWindows Library License
-
-https://www.wxwidgets.org/about/licence/
 
 ## Build Applications
 

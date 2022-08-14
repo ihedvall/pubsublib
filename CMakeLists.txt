@@ -3,7 +3,7 @@
 cmake_minimum_required(VERSION 3.20)
 project(pubsublib
         VERSION 1.0
-        DESCRIPTION "C++ library includind publish/subscribe protocols."
+        DESCRIPTION "C++ library including publish/subscribe protocols."
         LANGUAGES CXX)
 
 option(BUILD_SHARED_LIBS "Static libraries are preferred" OFF)
