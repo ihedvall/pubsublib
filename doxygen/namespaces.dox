@@ -1,0 +1,55 @@
+/*
+ * Copyright 2022 Ingemar Hedvall
+ * SPDX-License-Identifier: MIT
+ */
+
+/** \brief Main namespace for the util library.
+ *
+ * Main namespace for all util library classes and functions.
+ */
+namespace util {
+
+/** \brief The crypto namespace is used for hash functions.
+ *
+ * The crypto namespace is used by the hash functions.
+ */
+namespace crypto {}
+
+/** \brief The log namespace is used for log related classes and functions.
+ *
+ * The log namespace is used for all log related classes and functions.
+ */
+namespace log {}
+
+/** \brief The plot namespace is used for plotting related classes and functions.
+ *
+ * The plot namespace is used for all plotting related classes and functions.
+ */
+namespace plot {}
+
+/** \brief The string namespace is used for string manipulation functions.
+ *
+ * The string namespace is used for string manipulation functions.
+ */
+namespace string {}
+
+/** \brief The syslog namespace is used for the syslog interface.
+ *
+ * The syslog namespace is used for syslog message interfaces.
+ */
+namespace syslog {}
+
+/** \brief The time namespace is used for time and date functions.
+ *
+ * The time namespace is used for time and date functions.
+ */
+ namespace time {}
+
+/** \brief The xml namespace is used for XML related classes and functions.
+ *
+ * The xml namespace is used for all XML and Expat related classes and functions.
+ */
+namespace xml {}
+
+}
+
