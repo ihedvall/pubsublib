@@ -7,15 +7,16 @@ project(TestPubSub
         LANGUAGES CXX)
 
 add_executable(test_pubsub
-       test_mqtt.cpp)
+       test_mqtt.cpp test_payload.cpp)
 
 target_include_directories(test_pubsub PRIVATE ../include)
 target_include_directories(test_pubsub PRIVATE ../src)
 target_include_directories(test_pubsub PRIVATE ${GTEST_INCLUDE_DIRS})
 target_include_directories(test_pubsub PRIVATE ${Boost_INCLUDE_DIRS})
+target_include_directories(test_pubsub PRIVATE ${Protobuf_INCLUDE_DIRS})
+target_include_directories(test_pubsub PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/..)
 
-
-
+cmake_print_properties(TARGETS test_pubsub PROPERTIES INCLUDE_DIRECTORIES)
 target_link_libraries(test_pubsub PRIVATE util)
 target_link_libraries(test_pubsub PRIVATE pubsub)
 target_link_libraries(test_pubsub PRIVATE ${Boost_LIBRARIES})
@@ -24,6 +25,8 @@ target_link_libraries(test_pubsub PRIVATE ${EXPAT_LIBRARIES})
 target_link_libraries(test_pubsub PRIVATE ${GTEST_BOTH_LIBRARIES})
 target_link_libraries(test_pubsub PRIVATE ${OPENSSL_LIBRARIES})
 target_link_libraries(test_pubsub PRIVATE eclipse-paho-mqtt-c::paho-mqtt3as-static)
+target_link_libraries(test_pubsub PRIVATE ${Protobuf_LIBRARIES})
+target_link_libraries(test_pubsub PRIVATE ${Protobuf_PROTOC_LIBRARIES})
 
 if (WIN32)
 target_link_libraries(test_pubsub PRIVATE ws2_32)

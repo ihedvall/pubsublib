@@ -11,17 +11,19 @@
 #include <vector>
 #include <functional>
 #include <set>
+#include <mutex>
 #include "pubsub/itopic.h"
 
 namespace pub_sub {
 
-enum class PubSubType : int {
-  Mqtt3Client = 0, ///< MQTT 3.11 client interface.
-  Mqtt5Client = 1, ///< MQTT 5 client interface.
-  SparkPlugClient = 2, ///< MQTT version 3.11 with SparkPlug interface.
-  KafkaClient = 3, ///< Kafka client.
+enum class TransportLayer: int {
+  MqttTcp,
+  MqttWebSocket,
+  MqttTcpTls,
+  MqttWebSocketTls,
 };
-enum class ProtocolVersion {
+
+enum class ProtocolVersion : int {
   Mqtt3 = 3,
   Mqtt311 = 4,
   Mqtt5 = 5
@@ -39,6 +41,27 @@ class IPubSubClient {
   }
   [[nodiscard]] const std::string& ClientId() const {
     return client_id_;
+  }
+
+  void GroupId(const std::string& group_id) {
+    group_id_ = group_id;
+  }
+  [[nodiscard]] const std::string& GroupId() const {
+    return group_id_;
+  }
+
+  void NodeId(const std::string& node_id) {
+    node_id_ = node_id;
+  }
+  [[nodiscard]] const std::string& NodeId() const {
+    return node_id_;
+  }
+
+  void Transport(TransportLayer transport) {
+    transport_ = transport;
+  }
+  [[nodiscard]] TransportLayer Transport() const {
+    return transport_;
   }
 
   void Broker(const std::string& address) {
@@ -63,33 +86,30 @@ class IPubSubClient {
   }
 
   virtual ITopic* CreateTopic() = 0;
-  virtual bool FetchTopics(const std::string& search_topic, std::set<std::string>& topic_list) = 0;
+  ITopic* GetTopic(const std::string& topic_name);
+  ITopic* GetITopic(const std::string& topic_name);
+  ITopic* GetTopicByMessageType(const std::string& message_type);
+  void DeleteTopic(const std::string& topic_name);
+  void ClearTopic();
 
-  ITopic* GetTopic(const std::string& topic);
-  ITopic* GetITopic(const std::string& topic);
-  [[nodiscard]] const TopicList& Topics() const {
-    return topic_list_;
-  }
-
-  virtual void Start() = 0; ///< Connects to the MQTT server.
-  virtual void Stop() = 0; ///< Disconnect from the MQTT server.
+  virtual bool Start() = 0; ///< Connects to the MQTT server.
+  virtual bool Stop() = 0; ///< Disconnect from the MQTT server.
+  [[nodiscard]] virtual bool IsConnected() const = 0;
  protected:
-  ProtocolVersion version_ = ProtocolVersion::Mqtt5; ///< Using version 5 as default.
+  ProtocolVersion version_ = ProtocolVersion::Mqtt3; ///< Using version 3.1.1 as default.
+  TransportLayer transport_ = TransportLayer::MqttTcp; ///< Defines the underlying transport protocol and encryption.
   std::string broker_ = "127.0.0.1"; ///< Address to the MQTT server (broker).
   uint16_t port_ = 1883; ///< The MQTT broker server port.
-  std::string client_id_;
-  TopicList topic_list_; ///< List of topics.
 
+  std::string client_id_;
+  std::string group_id_;
+  std::string node_id_;
+
+  std::recursive_mutex topic_mutex; ///< Thread protection of the topic list
+  TopicList topic_list_; ///< List of topics.
 };
 
-/** \brief Creates a publisher client interface.
- *
- *  Creates a pre-defined publisher source. Currently on MQTT is available.
- *
- * @param type Type of publisher.
- * @return Smart pointer to a Pub/Sub client source.
- */
-extern std::unique_ptr<IPubSubClient> CreatePubSubClient(PubSubType type);
+
 
 
 } // end namespace

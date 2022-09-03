@@ -9,6 +9,7 @@
 #include <vector>
 #include <cstdint>
 #include <mutex>
+#include "pubsub/ipayload.h"
 
 namespace pub_sub {
 
@@ -23,11 +24,42 @@ class ITopic {
   ITopic() = default;
   virtual ~ITopic() = default;
 
-  void Topic(const std::string& topic) {
-    topic_ = topic;
+  void Topic(const std::string& topic);
+  [[nodiscard]] const std::string& Topic() const;
+
+  void Namespace(const std::string& name_space) {
+    name_space_ = name_space;
   }
-  [[nodiscard]] const std::string& Topic() const {
-    return topic_;
+  [[nodiscard]] const std::string& Namespace() const {
+    return name_space_;
+  }
+
+  void GroupId(const std::string& group_id) {
+    group_id_ = group_id;
+  }
+  [[nodiscard]] const std::string& GroupId() const {
+    return group_id_;
+  }
+
+  void MessageType(const std::string& message_type) {
+    message_type_ = message_type;
+  }
+  [[nodiscard]] const std::string& MessageType() const {
+    return message_type_;
+  }
+
+  void NodeId(const std::string& node_id) {
+    node_id_ = node_id;
+  }
+  [[nodiscard]] const std::string& NodeId() const {
+    return node_id_;
+  }
+
+  void DeviceId(const std::string& device_id) {
+    device_id_ = device_id;
+  }
+  [[nodiscard]] const std::string& DeviceId() const {
+    return device_id_;
   }
 
   void ContentType(const std::string& mime_type) {
@@ -66,6 +98,9 @@ class ITopic {
   template<typename T>
   [[nodiscard]] T Payload() const;
 
+  IPayload& GetPayload() {
+    return payload_;
+  }
   virtual void DoPublish() = 0;
   virtual void DoSubscribe() = 0;
 
@@ -79,14 +114,22 @@ class ITopic {
 
  private:
   std::string content_type_;    ///< MIME type of data (MQTT 5)
-  std::string topic_;   ///< MQTT topic name.
-  std::vector<uint8_t> payload_; ///< MQTT topic data.
-  uint64_t    timestamp_ = 0; ///< Nanoseconds since 1970
 
+  mutable std::string topic_;   ///< MQTT topic name. If empty '<namespace>/<group_id>/<message_type>/<node_id>/<device_id>'
+  std::string name_space_; ///< Topic namespace
+  std::string group_id_;
+  std::string message_type_;
+  std::string node_id_;
+  std::string device_id_;
+
+  IPayload payload_; ///< MQTT topic data.
+  uint64_t timestamp_ = 0; ///< Nanoseconds since 1970
 
   bool publish_ = false;
   QualityOfService qos_ = QualityOfService::Qos0;
   bool retained_ = false;
+
+  void AssignLevelName(size_t level, const std::string& name);
 };
 
 template<typename T>
@@ -121,8 +164,9 @@ T ITopic::Payload() const {
   std::lock_guard lock(topic_mutex_);
   T value = {};
   try {
-    std::string temp(payload_.size(), '\0');
-    memcpy_s(temp.data(), temp.size(), payload_.data(), payload_.size());
+    const auto& body = payload_.Body();
+    std::string temp(body.size(), '\0');
+    memcpy_s(temp.data(), temp.size(), body.data(), body.size());
     std::istringstream str(temp);
     str >> value;
   } catch (const std::exception& ) {

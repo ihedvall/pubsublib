@@ -24,7 +24,7 @@
   <td id="projectalign">
    <div id="projectname">PubSubLib<span id="projectnumber">&#160;1.0</span>
    </div>
-   <div id="projectbrief">C++ library includind publish/subscribe protocols.</div>
+   <div id="projectbrief">C++ library including publish/subscribe protocols.</div>
   </td>
  </tr>
  </tbody>
@@ -91,6 +91,12 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>ClientId</b> (const s
 <tr class="memitem:a3862de451519df2ca3e6375730eff3f8"><td class="memItemLeft" align="right" valign="top"><a id="a3862de451519df2ca3e6375730eff3f8" name="a3862de451519df2ca3e6375730eff3f8"></a>
 const std::string &amp;&#160;</td><td class="memItemRight" valign="bottom"><b>ClientId</b> () const</td></tr>
 <tr class="separator:a3862de451519df2ca3e6375730eff3f8"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a92b1b20df97c4b0c95ceb3a5f2c4ebc2"><td class="memItemLeft" align="right" valign="top"><a id="a92b1b20df97c4b0c95ceb3a5f2c4ebc2" name="a92b1b20df97c4b0c95ceb3a5f2c4ebc2"></a>
+void&#160;</td><td class="memItemRight" valign="bottom"><b>Transport</b> (TransportLayer transport)</td></tr>
+<tr class="separator:a92b1b20df97c4b0c95ceb3a5f2c4ebc2"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a93fab6f10ab3fc9fc8c3b79d2bbb6d83"><td class="memItemLeft" align="right" valign="top"><a id="a93fab6f10ab3fc9fc8c3b79d2bbb6d83" name="a93fab6f10ab3fc9fc8c3b79d2bbb6d83"></a>
+TransportLayer&#160;</td><td class="memItemRight" valign="bottom"><b>Transport</b> () const</td></tr>
+<tr class="separator:a93fab6f10ab3fc9fc8c3b79d2bbb6d83"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a5a6ae6c714dc7dba4133cc88e17ec171"><td class="memItemLeft" align="right" valign="top"><a id="a5a6ae6c714dc7dba4133cc88e17ec171" name="a5a6ae6c714dc7dba4133cc88e17ec171"></a>
 void&#160;</td><td class="memItemRight" valign="bottom"><b>Broker</b> (const std::string &amp;address)</td></tr>
 <tr class="separator:a5a6ae6c714dc7dba4133cc88e17ec171"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -136,9 +142,13 @@ virtual void&#160;</td><td class="memItemRight" valign="bottom"><b>Stop</b> ()=0
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="pro-attribs" name="pro-attribs"></a>
 Protected Attributes</h2></td></tr>
 <tr class="memitem:a4e95914897e4145a60bfb76c54b2b79a"><td class="memItemLeft" align="right" valign="top"><a id="a4e95914897e4145a60bfb76c54b2b79a" name="a4e95914897e4145a60bfb76c54b2b79a"></a>
-ProtocolVersion&#160;</td><td class="memItemRight" valign="bottom"><b>version_</b> = ProtocolVersion::Mqtt5</td></tr>
-<tr class="memdesc:a4e95914897e4145a60bfb76c54b2b79a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Using version 5 as default. <br /></td></tr>
+ProtocolVersion&#160;</td><td class="memItemRight" valign="bottom"><b>version_</b> = ProtocolVersion::Mqtt3</td></tr>
+<tr class="memdesc:a4e95914897e4145a60bfb76c54b2b79a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Using version 3.1.1 as default. <br /></td></tr>
 <tr class="separator:a4e95914897e4145a60bfb76c54b2b79a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a478e0d115b6d42e8e8009506bf6d44e5"><td class="memItemLeft" align="right" valign="top"><a id="a478e0d115b6d42e8e8009506bf6d44e5" name="a478e0d115b6d42e8e8009506bf6d44e5"></a>
+TransportLayer&#160;</td><td class="memItemRight" valign="bottom"><b>transport_</b> = TransportLayer::MqttTcp</td></tr>
+<tr class="memdesc:a478e0d115b6d42e8e8009506bf6d44e5"><td class="mdescLeft">&#160;</td><td class="mdescRight">Defines the underlying transport protocol and encryption. <br /></td></tr>
+<tr class="separator:a478e0d115b6d42e8e8009506bf6d44e5"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a28d961a8a3c289faf158746428a11dd7"><td class="memItemLeft" align="right" valign="top"><a id="a28d961a8a3c289faf158746428a11dd7" name="a28d961a8a3c289faf158746428a11dd7"></a>
 std::string&#160;</td><td class="memItemRight" valign="bottom"><b>broker_</b> = &quot;127.0.0.1&quot;</td></tr>
 <tr class="memdesc:a28d961a8a3c289faf158746428a11dd7"><td class="mdescLeft">&#160;</td><td class="mdescRight">Address to the MQTT server (broker). <br /></td></tr>

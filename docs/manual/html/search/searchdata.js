@@ -1,7 +1,7 @@
 var indexSectionsWithContent =
 {
   0: "bipstuv",
-  1: "i",
+  1: "ip",
   2: "u",
   3: "s",
   4: "bptv",

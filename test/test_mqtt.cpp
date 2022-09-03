@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 Ingemar Hedvall
+ * Copyright 2022 Ingemar Hedvall
  * SPDX-License-Identifier: MIT
  */
 #include <string>
@@ -7,8 +7,9 @@
 #include <chrono>
 #include <gtest/gtest.h>
 #include <MQTTAsync.h>
-#include "util/utilfactory.h"
-#include "mqttclient.h"
+#include <util/utilfactory.h>
+#include <util/logconfig.h>
+#include "pubsub/pubsubfactory.h"
 
 /*
 #if !defined(_WIN32)
@@ -23,6 +24,7 @@
 */
 
 using namespace std::chrono_literals;
+using namespace util::log;
 
 namespace {
 
@@ -162,28 +164,31 @@ TEST(Mqtt, DISABLED_PublishV3) { // NOLINT
 }
 
 TEST(Mqtt, Mqtt3Client) { // NOLINT
+  auto& log_config = LogConfig::Instance();
+  log_config.Type(LogType::LogToConsole);
+  log_config.CreateDefaultLogger();
+
   auto listen = util::UtilFactory::CreateListen("ListenConsole", "LISMQTT");
+
+  listen->Start();
   listen->SetActive(true);
   listen->SetLogLevel(3);
-  listen->Start();
+  std::this_thread::sleep_for(1s);
 
-  auto client = CreatePubSubClient(PubSubType::Mqtt3Client);
-  client->Broker("192.168.1.155");
+  auto client = PubSubFactory::CreatePubSubClient(PubSubType::Mqtt3Client);
+  client->Broker("test.mosquitto.org");
   client->Port(1883);
   client->ClientId("Client1");
 
-  std::set<std::string> topic_list;
-  client->FetchTopics("test/Hello", topic_list);
-
   auto publish = client->CreateTopic();
-  publish->Topic(kTopic.data());
+  publish->Topic("ihedvall/test/pubsub/test_mqtt3");
   publish->Payload(kPayLoad.data());
   publish->Qos(QualityOfService::Qos1);
-  publish->Retained(false);
+  publish->Retained(true);
   publish->Publish(true);
 
   auto subscribe = client->CreateTopic();
-  subscribe->Topic(kTopic.data());
+  subscribe->Topic("ihedvall/test/pubsub/test_mqtt3");
   subscribe->Qos(QualityOfService::Qos1);
   subscribe->Publish(false);
 
@@ -203,6 +208,7 @@ TEST(Mqtt, Mqtt3Client) { // NOLINT
 
   client.reset();
   listen.reset();
+  log_config.DeleteLogChain();
 }
 
 } // end namespace

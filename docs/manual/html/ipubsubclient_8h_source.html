@@ -24,7 +24,7 @@
   <td id="projectalign">
    <div id="projectname">PubSubLib<span id="projectnumber">&#160;1.0</span>
    </div>
-   <div id="projectbrief">C++ library includind publish/subscribe protocols.</div>
+   <div id="projectbrief">C++ library including publish/subscribe protocols.</div>
   </td>
  </tr>
  </tbody>
@@ -94,76 +94,92 @@ $(function() {
 <div class="line"><a id="l00021" name="l00021"></a><span class="lineno">   21</span>  SparkPlugClient = 2, </div>
 <div class="line"><a id="l00022" name="l00022"></a><span class="lineno">   22</span>  KafkaClient = 3, </div>
 <div class="line"><a id="l00023" name="l00023"></a><span class="lineno">   23</span>};</div>
-<div class="line"><a id="l00024" name="l00024"></a><span class="lineno">   24</span><span class="keyword">enum class</span> ProtocolVersion {</div>
-<div class="line"><a id="l00025" name="l00025"></a><span class="lineno">   25</span>  Mqtt3 = 3,</div>
-<div class="line"><a id="l00026" name="l00026"></a><span class="lineno">   26</span>  Mqtt311 = 4,</div>
-<div class="line"><a id="l00027" name="l00027"></a><span class="lineno">   27</span>  Mqtt5 = 5</div>
-<div class="line"><a id="l00028" name="l00028"></a><span class="lineno">   28</span>};</div>
-<div class="line"><a id="l00029" name="l00029"></a><span class="lineno">   29</span> </div>
-<div class="line"><a id="l00030" name="l00030"></a><span class="lineno"><a class="line" href="classpub__sub_1_1_i_pub_sub_client.html">   30</a></span><span class="keyword">class </span><a class="code hl_class" href="classpub__sub_1_1_i_pub_sub_client.html">IPubSubClient</a> {</div>
-<div class="line"><a id="l00031" name="l00031"></a><span class="lineno">   31</span> <span class="keyword">public</span>:</div>
-<div class="line"><a id="l00032" name="l00032"></a><span class="lineno">   32</span>  <span class="keyword">using </span>TopicList = std::vector&lt;std::unique_ptr&lt;ITopic&gt;&gt;;</div>
-<div class="line"><a id="l00033" name="l00033"></a><span class="lineno">   33</span> </div>
-<div class="line"><a id="l00034" name="l00034"></a><span class="lineno">   34</span>  <a class="code hl_class" href="classpub__sub_1_1_i_pub_sub_client.html">IPubSubClient</a>() = <span class="keywordflow">default</span>;</div>
-<div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span>  <span class="keyword">virtual</span> <a class="code hl_class" href="classpub__sub_1_1_i_pub_sub_client.html">~IPubSubClient</a>() = <span class="keywordflow">default</span>;</div>
-<div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span> </div>
-<div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span>  <span class="keywordtype">void</span> ClientId(<span class="keyword">const</span> std::string&amp; client_id) {</div>
-<div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span>    client_id_ = client_id;</div>
-<div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span>  }</div>
-<div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span>  [[nodiscard]] <span class="keyword">const</span> std::string&amp; ClientId()<span class="keyword"> const </span>{</div>
-<div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span>    <span class="keywordflow">return</span> client_id_;</div>
-<div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span>  }</div>
-<div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span> </div>
-<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span>  <span class="keywordtype">void</span> Broker(<span class="keyword">const</span> std::string&amp; address) {</div>
-<div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span>    <a class="code hl_variable" href="classpub__sub_1_1_i_pub_sub_client.html#a28d961a8a3c289faf158746428a11dd7">broker_</a> = address;</div>
-<div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span>  }</div>
-<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span>  [[nodiscard]] <span class="keyword">const</span> std::string&amp; Broker()<span class="keyword"> const </span>{</div>
-<div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span>    <span class="keywordflow">return</span> <a class="code hl_variable" href="classpub__sub_1_1_i_pub_sub_client.html#a28d961a8a3c289faf158746428a11dd7">broker_</a>;</div>
-<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span>  }</div>
-<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span> </div>
-<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span>  <span class="keywordtype">void</span> Port(uint16_t port) {</div>
-<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span>    <a class="code hl_variable" href="classpub__sub_1_1_i_pub_sub_client.html#a1deb0b577e8f3a5358c7e1c2b5f08cfd">port_</a> = port;</div>
-<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span>  }</div>
-<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span>  [[nodiscard]] uint16_t Port()<span class="keyword"> const </span>{</div>
-<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span>    <span class="keywordflow">return</span> <a class="code hl_variable" href="classpub__sub_1_1_i_pub_sub_client.html#a1deb0b577e8f3a5358c7e1c2b5f08cfd">port_</a>;</div>
-<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span>  }</div>
-<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span> </div>
-<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span>  <span class="keywordtype">void</span> Version(ProtocolVersion version) {</div>
-<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span>    <a class="code hl_variable" href="classpub__sub_1_1_i_pub_sub_client.html#a4e95914897e4145a60bfb76c54b2b79a">version_</a> = version;</div>
-<div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span>  }</div>
-<div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span>  [[nodiscard]] ProtocolVersion Version()<span class="keyword"> const </span>{</div>
-<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span>    <span class="keywordflow">return</span> <a class="code hl_variable" href="classpub__sub_1_1_i_pub_sub_client.html#a4e95914897e4145a60bfb76c54b2b79a">version_</a>;</div>
-<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span>  }</div>
-<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span> </div>
-<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span>  <span class="keyword">virtual</span> <a class="code hl_class" href="classpub__sub_1_1_i_topic.html">ITopic</a>* CreateTopic() = 0;</div>
-<div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span>  <span class="keyword">virtual</span> <span class="keywordtype">bool</span> FetchTopics(<span class="keyword">const</span> std::string&amp; search_topic, std::set&lt;std::string&gt;&amp; topic_list) = 0;</div>
-<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span> </div>
-<div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span>  <a class="code hl_class" href="classpub__sub_1_1_i_topic.html">ITopic</a>* GetTopic(<span class="keyword">const</span> std::string&amp; topic);</div>
-<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span>  <a class="code hl_class" href="classpub__sub_1_1_i_topic.html">ITopic</a>* GetITopic(<span class="keyword">const</span> std::string&amp; topic);</div>
-<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span>  [[nodiscard]] <span class="keyword">const</span> TopicList&amp; Topics()<span class="keyword"> const </span>{</div>
-<div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span>    <span class="keywordflow">return</span> <a class="code hl_variable" href="classpub__sub_1_1_i_pub_sub_client.html#a6e56c0ec31a5a9ed23384892816a9388">topic_list_</a>;</div>
-<div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span>  }</div>
-<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span> </div>
-<div class="line"><a id="l00074" name="l00074"></a><span class="lineno"><a class="line" href="classpub__sub_1_1_i_pub_sub_client.html#aa66fd27b9a3ee4ceedb3744ea1f80427">   74</a></span>  <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code hl_function" href="classpub__sub_1_1_i_pub_sub_client.html#aa66fd27b9a3ee4ceedb3744ea1f80427">Start</a>() = 0; </div>
-<div class="line"><a id="l00075" name="l00075"></a><span class="lineno"><a class="line" href="classpub__sub_1_1_i_pub_sub_client.html#a7d9f4350fe440de033d9233a591d61cb">   75</a></span>  <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code hl_function" href="classpub__sub_1_1_i_pub_sub_client.html#a7d9f4350fe440de033d9233a591d61cb">Stop</a>() = 0; </div>
-<div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span> <span class="keyword">protected</span>:</div>
-<div class="line"><a id="l00077" name="l00077"></a><span class="lineno"><a class="line" href="classpub__sub_1_1_i_pub_sub_client.html#a4e95914897e4145a60bfb76c54b2b79a">   77</a></span>  ProtocolVersion <a class="code hl_variable" href="classpub__sub_1_1_i_pub_sub_client.html#a4e95914897e4145a60bfb76c54b2b79a">version_</a> = ProtocolVersion::Mqtt5; </div>
-<div class="line"><a id="l00078" name="l00078"></a><span class="lineno"><a class="line" href="classpub__sub_1_1_i_pub_sub_client.html#a28d961a8a3c289faf158746428a11dd7">   78</a></span>  std::string <a class="code hl_variable" href="classpub__sub_1_1_i_pub_sub_client.html#a28d961a8a3c289faf158746428a11dd7">broker_</a> = <span class="stringliteral">&quot;127.0.0.1&quot;</span>; </div>
-<div class="line"><a id="l00079" name="l00079"></a><span class="lineno"><a class="line" href="classpub__sub_1_1_i_pub_sub_client.html#a1deb0b577e8f3a5358c7e1c2b5f08cfd">   79</a></span>  uint16_t <a class="code hl_variable" href="classpub__sub_1_1_i_pub_sub_client.html#a1deb0b577e8f3a5358c7e1c2b5f08cfd">port_</a> = 1883; </div>
-<div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span>  std::string client_id_;</div>
-<div class="line"><a id="l00081" name="l00081"></a><span class="lineno"><a class="line" href="classpub__sub_1_1_i_pub_sub_client.html#a6e56c0ec31a5a9ed23384892816a9388">   81</a></span>  TopicList <a class="code hl_variable" href="classpub__sub_1_1_i_pub_sub_client.html#a6e56c0ec31a5a9ed23384892816a9388">topic_list_</a>; </div>
+<div class="line"><a id="l00024" name="l00024"></a><span class="lineno">   24</span> </div>
+<div class="line"><a id="l00025" name="l00025"></a><span class="lineno">   25</span><span class="keyword">enum class</span> TransportLayer: <span class="keywordtype">int</span> {</div>
+<div class="line"><a id="l00026" name="l00026"></a><span class="lineno">   26</span>  MqttTcp,</div>
+<div class="line"><a id="l00027" name="l00027"></a><span class="lineno">   27</span>  MqttWebSocket,</div>
+<div class="line"><a id="l00028" name="l00028"></a><span class="lineno">   28</span>  MqttTcpTls,</div>
+<div class="line"><a id="l00029" name="l00029"></a><span class="lineno">   29</span>  MqttWebSocketTls,</div>
+<div class="line"><a id="l00030" name="l00030"></a><span class="lineno">   30</span>};</div>
+<div class="line"><a id="l00031" name="l00031"></a><span class="lineno">   31</span> </div>
+<div class="line"><a id="l00032" name="l00032"></a><span class="lineno">   32</span><span class="keyword">enum class</span> ProtocolVersion : <span class="keywordtype">int</span> {</div>
+<div class="line"><a id="l00033" name="l00033"></a><span class="lineno">   33</span>  Mqtt3 = 3,</div>
+<div class="line"><a id="l00034" name="l00034"></a><span class="lineno">   34</span>  Mqtt311 = 4,</div>
+<div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span>  Mqtt5 = 5</div>
+<div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span>};</div>
+<div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span> </div>
+<div class="line"><a id="l00038" name="l00038"></a><span class="lineno"><a class="line" href="classpub__sub_1_1_i_pub_sub_client.html">   38</a></span><span class="keyword">class </span><a class="code hl_class" href="classpub__sub_1_1_i_pub_sub_client.html">IPubSubClient</a> {</div>
+<div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span> <span class="keyword">public</span>:</div>
+<div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span>  <span class="keyword">using </span>TopicList = std::vector&lt;std::unique_ptr&lt;ITopic&gt;&gt;;</div>
+<div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span> </div>
+<div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span>  <a class="code hl_class" href="classpub__sub_1_1_i_pub_sub_client.html">IPubSubClient</a>() = <span class="keywordflow">default</span>;</div>
+<div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span>  <span class="keyword">virtual</span> <a class="code hl_class" href="classpub__sub_1_1_i_pub_sub_client.html">~IPubSubClient</a>() = <span class="keywordflow">default</span>;</div>
+<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span> </div>
+<div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span>  <span class="keywordtype">void</span> ClientId(<span class="keyword">const</span> std::string&amp; client_id) {</div>
+<div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span>    client_id_ = client_id;</div>
+<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span>  }</div>
+<div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span>  [[nodiscard]] <span class="keyword">const</span> std::string&amp; ClientId()<span class="keyword"> const </span>{</div>
+<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span>    <span class="keywordflow">return</span> client_id_;</div>
+<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span>  }</div>
+<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span> </div>
+<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span>  <span class="keywordtype">void</span> Transport(TransportLayer transport) {</div>
+<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span>    <a class="code hl_variable" href="classpub__sub_1_1_i_pub_sub_client.html#a478e0d115b6d42e8e8009506bf6d44e5">transport_</a> = transport;</div>
+<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span>  }</div>
+<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span>  [[nodiscard]] TransportLayer Transport()<span class="keyword"> const </span>{</div>
+<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span>    <span class="keywordflow">return</span> <a class="code hl_variable" href="classpub__sub_1_1_i_pub_sub_client.html#a478e0d115b6d42e8e8009506bf6d44e5">transport_</a>;</div>
+<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span>  }</div>
+<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span> </div>
+<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span>  <span class="keywordtype">void</span> Broker(<span class="keyword">const</span> std::string&amp; address) {</div>
+<div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span>    <a class="code hl_variable" href="classpub__sub_1_1_i_pub_sub_client.html#a28d961a8a3c289faf158746428a11dd7">broker_</a> = address;</div>
+<div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span>  }</div>
+<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span>  [[nodiscard]] <span class="keyword">const</span> std::string&amp; Broker()<span class="keyword"> const </span>{</div>
+<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span>    <span class="keywordflow">return</span> <a class="code hl_variable" href="classpub__sub_1_1_i_pub_sub_client.html#a28d961a8a3c289faf158746428a11dd7">broker_</a>;</div>
+<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span>  }</div>
+<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span> </div>
+<div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span>  <span class="keywordtype">void</span> Port(uint16_t port) {</div>
+<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span>    <a class="code hl_variable" href="classpub__sub_1_1_i_pub_sub_client.html#a1deb0b577e8f3a5358c7e1c2b5f08cfd">port_</a> = port;</div>
+<div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span>  }</div>
+<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span>  [[nodiscard]] uint16_t Port()<span class="keyword"> const </span>{</div>
+<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span>    <span class="keywordflow">return</span> <a class="code hl_variable" href="classpub__sub_1_1_i_pub_sub_client.html#a1deb0b577e8f3a5358c7e1c2b5f08cfd">port_</a>;</div>
+<div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span>  }</div>
+<div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span> </div>
+<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span>  <span class="keywordtype">void</span> Version(ProtocolVersion version) {</div>
+<div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span>    <a class="code hl_variable" href="classpub__sub_1_1_i_pub_sub_client.html#a4e95914897e4145a60bfb76c54b2b79a">version_</a> = version;</div>
+<div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span>  }</div>
+<div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span>  [[nodiscard]] ProtocolVersion Version()<span class="keyword"> const </span>{</div>
+<div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span>    <span class="keywordflow">return</span> <a class="code hl_variable" href="classpub__sub_1_1_i_pub_sub_client.html#a4e95914897e4145a60bfb76c54b2b79a">version_</a>;</div>
+<div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span>  }</div>
+<div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span> </div>
+<div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span>  <span class="keyword">virtual</span> <a class="code hl_class" href="classpub__sub_1_1_i_topic.html">ITopic</a>* CreateTopic() = 0;</div>
+<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span>  <span class="keyword">virtual</span> <span class="keywordtype">bool</span> FetchTopics(<span class="keyword">const</span> std::string&amp; search_topic, std::set&lt;std::string&gt;&amp; topic_list) = 0;</div>
 <div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span> </div>
-<div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span>};</div>
-<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span> </div>
-<div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span><span class="keyword">extern</span> std::unique_ptr&lt;IPubSubClient&gt; CreatePubSubClient(PubSubType type);</div>
-<div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span> </div>
-<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span> </div>
-<div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span>} <span class="comment">// end namespace</span></div>
-<div class="ttc" id="aclasspub__sub_1_1_i_pub_sub_client_html"><div class="ttname"><a href="classpub__sub_1_1_i_pub_sub_client.html">pub_sub::IPubSubClient</a></div><div class="ttdef"><b>Definition:</b> ipubsubclient.h:30</div></div>
-<div class="ttc" id="aclasspub__sub_1_1_i_pub_sub_client_html_a1deb0b577e8f3a5358c7e1c2b5f08cfd"><div class="ttname"><a href="classpub__sub_1_1_i_pub_sub_client.html#a1deb0b577e8f3a5358c7e1c2b5f08cfd">pub_sub::IPubSubClient::port_</a></div><div class="ttdeci">uint16_t port_</div><div class="ttdoc">The MQTT broker server port.</div><div class="ttdef"><b>Definition:</b> ipubsubclient.h:79</div></div>
-<div class="ttc" id="aclasspub__sub_1_1_i_pub_sub_client_html_a28d961a8a3c289faf158746428a11dd7"><div class="ttname"><a href="classpub__sub_1_1_i_pub_sub_client.html#a28d961a8a3c289faf158746428a11dd7">pub_sub::IPubSubClient::broker_</a></div><div class="ttdeci">std::string broker_</div><div class="ttdoc">Address to the MQTT server (broker).</div><div class="ttdef"><b>Definition:</b> ipubsubclient.h:78</div></div>
-<div class="ttc" id="aclasspub__sub_1_1_i_pub_sub_client_html_a4e95914897e4145a60bfb76c54b2b79a"><div class="ttname"><a href="classpub__sub_1_1_i_pub_sub_client.html#a4e95914897e4145a60bfb76c54b2b79a">pub_sub::IPubSubClient::version_</a></div><div class="ttdeci">ProtocolVersion version_</div><div class="ttdoc">Using version 5 as default.</div><div class="ttdef"><b>Definition:</b> ipubsubclient.h:77</div></div>
-<div class="ttc" id="aclasspub__sub_1_1_i_pub_sub_client_html_a6e56c0ec31a5a9ed23384892816a9388"><div class="ttname"><a href="classpub__sub_1_1_i_pub_sub_client.html#a6e56c0ec31a5a9ed23384892816a9388">pub_sub::IPubSubClient::topic_list_</a></div><div class="ttdeci">TopicList topic_list_</div><div class="ttdoc">List of topics.</div><div class="ttdef"><b>Definition:</b> ipubsubclient.h:81</div></div>
+<div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span>  <a class="code hl_class" href="classpub__sub_1_1_i_topic.html">ITopic</a>* GetTopic(<span class="keyword">const</span> std::string&amp; topic);</div>
+<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span>  <a class="code hl_class" href="classpub__sub_1_1_i_topic.html">ITopic</a>* GetITopic(<span class="keyword">const</span> std::string&amp; topic);</div>
+<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span>  [[nodiscard]] <span class="keyword">const</span> TopicList&amp; Topics()<span class="keyword"> const </span>{</div>
+<div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span>    <span class="keywordflow">return</span> <a class="code hl_variable" href="classpub__sub_1_1_i_pub_sub_client.html#a6e56c0ec31a5a9ed23384892816a9388">topic_list_</a>;</div>
+<div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span>  }</div>
+<div class="line"><a id="l00088" name="l00088"></a><span class="lineno">   88</span> </div>
+<div class="line"><a id="l00089" name="l00089"></a><span class="lineno"><a class="line" href="classpub__sub_1_1_i_pub_sub_client.html#aa66fd27b9a3ee4ceedb3744ea1f80427">   89</a></span>  <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code hl_function" href="classpub__sub_1_1_i_pub_sub_client.html#aa66fd27b9a3ee4ceedb3744ea1f80427">Start</a>() = 0; </div>
+<div class="line"><a id="l00090" name="l00090"></a><span class="lineno"><a class="line" href="classpub__sub_1_1_i_pub_sub_client.html#a7d9f4350fe440de033d9233a591d61cb">   90</a></span>  <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code hl_function" href="classpub__sub_1_1_i_pub_sub_client.html#a7d9f4350fe440de033d9233a591d61cb">Stop</a>() = 0; </div>
+<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span> <span class="keyword">protected</span>:</div>
+<div class="line"><a id="l00092" name="l00092"></a><span class="lineno"><a class="line" href="classpub__sub_1_1_i_pub_sub_client.html#a4e95914897e4145a60bfb76c54b2b79a">   92</a></span>  ProtocolVersion <a class="code hl_variable" href="classpub__sub_1_1_i_pub_sub_client.html#a4e95914897e4145a60bfb76c54b2b79a">version_</a> = ProtocolVersion::Mqtt3; </div>
+<div class="line"><a id="l00093" name="l00093"></a><span class="lineno"><a class="line" href="classpub__sub_1_1_i_pub_sub_client.html#a478e0d115b6d42e8e8009506bf6d44e5">   93</a></span>  TransportLayer <a class="code hl_variable" href="classpub__sub_1_1_i_pub_sub_client.html#a478e0d115b6d42e8e8009506bf6d44e5">transport_</a> = TransportLayer::MqttTcp; </div>
+<div class="line"><a id="l00094" name="l00094"></a><span class="lineno"><a class="line" href="classpub__sub_1_1_i_pub_sub_client.html#a28d961a8a3c289faf158746428a11dd7">   94</a></span>  std::string <a class="code hl_variable" href="classpub__sub_1_1_i_pub_sub_client.html#a28d961a8a3c289faf158746428a11dd7">broker_</a> = <span class="stringliteral">&quot;127.0.0.1&quot;</span>; </div>
+<div class="line"><a id="l00095" name="l00095"></a><span class="lineno"><a class="line" href="classpub__sub_1_1_i_pub_sub_client.html#a1deb0b577e8f3a5358c7e1c2b5f08cfd">   95</a></span>  uint16_t <a class="code hl_variable" href="classpub__sub_1_1_i_pub_sub_client.html#a1deb0b577e8f3a5358c7e1c2b5f08cfd">port_</a> = 1883; </div>
+<div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span>  std::string client_id_;</div>
+<div class="line"><a id="l00097" name="l00097"></a><span class="lineno"><a class="line" href="classpub__sub_1_1_i_pub_sub_client.html#a6e56c0ec31a5a9ed23384892816a9388">   97</a></span>  TopicList <a class="code hl_variable" href="classpub__sub_1_1_i_pub_sub_client.html#a6e56c0ec31a5a9ed23384892816a9388">topic_list_</a>; </div>
+<div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span>};</div>
+<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span> </div>
+<div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span><span class="keyword">extern</span> std::unique_ptr&lt;IPubSubClient&gt; CreatePubSubClient(PubSubType type);</div>
+<div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span> </div>
+<div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span> </div>
+<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span>} <span class="comment">// end namespace</span></div>
+<div class="ttc" id="aclasspub__sub_1_1_i_pub_sub_client_html"><div class="ttname"><a href="classpub__sub_1_1_i_pub_sub_client.html">pub_sub::IPubSubClient</a></div><div class="ttdef"><b>Definition:</b> ipubsubclient.h:38</div></div>
+<div class="ttc" id="aclasspub__sub_1_1_i_pub_sub_client_html_a1deb0b577e8f3a5358c7e1c2b5f08cfd"><div class="ttname"><a href="classpub__sub_1_1_i_pub_sub_client.html#a1deb0b577e8f3a5358c7e1c2b5f08cfd">pub_sub::IPubSubClient::port_</a></div><div class="ttdeci">uint16_t port_</div><div class="ttdoc">The MQTT broker server port.</div><div class="ttdef"><b>Definition:</b> ipubsubclient.h:95</div></div>
+<div class="ttc" id="aclasspub__sub_1_1_i_pub_sub_client_html_a28d961a8a3c289faf158746428a11dd7"><div class="ttname"><a href="classpub__sub_1_1_i_pub_sub_client.html#a28d961a8a3c289faf158746428a11dd7">pub_sub::IPubSubClient::broker_</a></div><div class="ttdeci">std::string broker_</div><div class="ttdoc">Address to the MQTT server (broker).</div><div class="ttdef"><b>Definition:</b> ipubsubclient.h:94</div></div>
+<div class="ttc" id="aclasspub__sub_1_1_i_pub_sub_client_html_a478e0d115b6d42e8e8009506bf6d44e5"><div class="ttname"><a href="classpub__sub_1_1_i_pub_sub_client.html#a478e0d115b6d42e8e8009506bf6d44e5">pub_sub::IPubSubClient::transport_</a></div><div class="ttdeci">TransportLayer transport_</div><div class="ttdoc">Defines the underlying transport protocol and encryption.</div><div class="ttdef"><b>Definition:</b> ipubsubclient.h:93</div></div>
+<div class="ttc" id="aclasspub__sub_1_1_i_pub_sub_client_html_a4e95914897e4145a60bfb76c54b2b79a"><div class="ttname"><a href="classpub__sub_1_1_i_pub_sub_client.html#a4e95914897e4145a60bfb76c54b2b79a">pub_sub::IPubSubClient::version_</a></div><div class="ttdeci">ProtocolVersion version_</div><div class="ttdoc">Using version 3.1.1 as default.</div><div class="ttdef"><b>Definition:</b> ipubsubclient.h:92</div></div>
+<div class="ttc" id="aclasspub__sub_1_1_i_pub_sub_client_html_a6e56c0ec31a5a9ed23384892816a9388"><div class="ttname"><a href="classpub__sub_1_1_i_pub_sub_client.html#a6e56c0ec31a5a9ed23384892816a9388">pub_sub::IPubSubClient::topic_list_</a></div><div class="ttdeci">TopicList topic_list_</div><div class="ttdoc">List of topics.</div><div class="ttdef"><b>Definition:</b> ipubsubclient.h:97</div></div>
 <div class="ttc" id="aclasspub__sub_1_1_i_pub_sub_client_html_a7d9f4350fe440de033d9233a591d61cb"><div class="ttname"><a href="classpub__sub_1_1_i_pub_sub_client.html#a7d9f4350fe440de033d9233a591d61cb">pub_sub::IPubSubClient::Stop</a></div><div class="ttdeci">virtual void Stop()=0</div><div class="ttdoc">Disconnect from the MQTT server.</div></div>
 <div class="ttc" id="aclasspub__sub_1_1_i_pub_sub_client_html_aa66fd27b9a3ee4ceedb3744ea1f80427"><div class="ttname"><a href="classpub__sub_1_1_i_pub_sub_client.html#aa66fd27b9a3ee4ceedb3744ea1f80427">pub_sub::IPubSubClient::Start</a></div><div class="ttdeci">virtual void Start()=0</div><div class="ttdoc">Connects to the MQTT server.</div></div>
 <div class="ttc" id="aclasspub__sub_1_1_i_topic_html"><div class="ttname"><a href="classpub__sub_1_1_i_topic.html">pub_sub::ITopic</a></div><div class="ttdef"><b>Definition:</b> itopic.h:21</div></div>
