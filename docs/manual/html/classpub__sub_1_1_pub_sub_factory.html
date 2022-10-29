@@ -5,7 +5,7 @@
 <meta http-equiv="X-UA-Compatible" content="IE=11"/>
 <meta name="generator" content="Doxygen 1.9.4"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>PubSubLib: include/pubsub Directory Reference</title>
+<title>PubSubLib: pub_sub::PubSubFactory Class Reference</title>
 <link href="tabs.css" rel="stylesheet" type="text/css"/>
 <script type="text/javascript" src="jquery.js"></script>
 <script type="text/javascript" src="dynsections.js"></script>
@@ -64,36 +64,61 @@ $(function() {
 
 <div id="nav-path" class="navpath">
   <ul>
-<li class="navelem"><a class="el" href="dir_d44c64559bbebec7f509842c48db8b23.html">include</a></li><li class="navelem"><a class="el" href="dir_e77076f5eea257c17b495473e7a5c0d6.html">pubsub</a></li>  </ul>
+<li class="navelem"><b>pub_sub</b></li><li class="navelem"><a class="el" href="classpub__sub_1_1_pub_sub_factory.html">PubSubFactory</a></li>  </ul>
 </div>
 </div><!-- top -->
 <div class="header">
-  <div class="headertitle"><div class="title">pubsub Directory Reference</div></div>
+  <div class="summary">
+<a href="#pub-static-methods">Static Public Member Functions</a> &#124;
+<a href="classpub__sub_1_1_pub_sub_factory-members.html">List of all members</a>  </div>
+  <div class="headertitle"><div class="title">pub_sub::PubSubFactory Class Reference</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="dynheader">
-Directory dependency graph for pubsub:</div>
-<div class="dyncontent">
-<div class="center"><img src="dir_e77076f5eea257c17b495473e7a5c0d6_dep.png" border="0" usemap="#adir__e77076f5eea257c17b495473e7a5c0d6__dep" alt="include/pubsub"/></div>
-<map name="adir__e77076f5eea257c17b495473e7a5c0d6__dep" id="adir__e77076f5eea257c17b495473e7a5c0d6__dep">
-<area shape="rect" href="dir_e77076f5eea257c17b495473e7a5c0d6.html" title="pubsub" alt="" coords="27,52,99,100"/>
-<area shape="rect" href="dir_d44c64559bbebec7f509842c48db8b23.html" title="include" alt="" coords="16,16,109,111"/>
-</map>
-</div>
 <table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="files" name="files"></a>
-Files</h2></td></tr>
-<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">file &#160;</td><td class="memItemRight" valign="bottom"><b>imetric.h</b> <a href="imetric_8h_source.html">[code]</a></td></tr>
-<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">file &#160;</td><td class="memItemRight" valign="bottom"><b>ipayload.h</b> <a href="ipayload_8h_source.html">[code]</a></td></tr>
-<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">file &#160;</td><td class="memItemRight" valign="bottom"><b>ipubsubclient.h</b> <a href="ipubsubclient_8h_source.html">[code]</a></td></tr>
-<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">file &#160;</td><td class="memItemRight" valign="bottom"><b>itopic.h</b> <a href="itopic_8h_source.html">[code]</a></td></tr>
-<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">file &#160;</td><td class="memItemRight" valign="bottom"><b>pubsubfactory.h</b> <a href="pubsubfactory_8h_source.html">[code]</a></td></tr>
-<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="pub-static-methods" name="pub-static-methods"></a>
+Static Public Member Functions</h2></td></tr>
+<tr class="memitem:a053466119627412c814c2a610d785836"><td class="memItemLeft" align="right" valign="top">static std::unique_ptr&lt; <a class="el" href="classpub__sub_1_1_i_pub_sub_client.html">IPubSubClient</a> &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classpub__sub_1_1_pub_sub_factory.html#a053466119627412c814c2a610d785836">CreatePubSubClient</a> (PubSubType type)</td></tr>
+<tr class="memdesc:a053466119627412c814c2a610d785836"><td class="mdescLeft">&#160;</td><td class="mdescRight">Creates a publisher client interface.  <a href="classpub__sub_1_1_pub_sub_factory.html#a053466119627412c814c2a610d785836">More...</a><br /></td></tr>
+<tr class="separator:a053466119627412c814c2a610d785836"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
+<h2 class="groupheader">Member Function Documentation</h2>
+<a id="a053466119627412c814c2a610d785836" name="a053466119627412c814c2a610d785836"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a053466119627412c814c2a610d785836">&#9670;&nbsp;</a></span>CreatePubSubClient()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static std::unique_ptr&lt; <a class="el" href="classpub__sub_1_1_i_pub_sub_client.html">IPubSubClient</a> &gt; pub_sub::PubSubFactory::CreatePubSubClient </td>
+          <td>(</td>
+          <td class="paramtype">PubSubType&#160;</td>
+          <td class="paramname"><em>type</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+<p >Creates a pre-defined publisher source. Currently on MQTT is available.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">type</td><td>Type of publisher. </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>Smart pointer to a Pub/Sub client source. </dd></dl>
+
+</div>
+</div>
+<hr/>The documentation for this class was generated from the following file:<ul>
+<li>include/pubsub/<a class="el" href="pubsubfactory_8h_source.html">pubsubfactory.h</a></li>
+</ul>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>

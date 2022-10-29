@@ -4,10 +4,10 @@ cmake_minimum_required(VERSION 3.20)
 project(pubsublib
         VERSION 1.0
         DESCRIPTION "C++ library including publish/subscribe protocols."
-        LANGUAGES CXX)
+        LANGUAGES CXX C )
 
 option(BUILD_SHARED_LIBS "Static libraries are preferred" OFF)
-option(BUILD_DOC "If doxygen is installed, then build documentation in Release mode" ON)
+option(BUILD_DOC "If doxygen is installed, then build documentation in Release mode" OFF)
 option(BUILD_TEST "If Google Test is installed, then build the unit tests" ON)
 if (NOT COMP_DIR)
     set(COMP_DIR "k:")
@@ -36,12 +36,12 @@ add_library(pubsub STATIC
         src/mqttclient.cpp src/mqttclient.h
         src/mqtttopic.cpp src/mqtttopic.h
         ${PROTO_SRCS} ${PROTO_HDRS}
-        ${TAHU_C_SRC_DIR}/pb_common.c ${TAHU_C_INCLUDE_DIR}/pb_common.h
-        ${TAHU_C_INCLUDE_DIR}/pb.h
-        ${TAHU_C_SRC_DIR}/pb_decode.c ${TAHU_C_INCLUDE_DIR}/pb_decode.h
-        ${TAHU_C_SRC_DIR}/pb_encode.c ${TAHU_C_INCLUDE_DIR}/pb_encode.h
-        ${TAHU_C_SRC_DIR}/tahu.c ${TAHU_C_INCLUDE_DIR}/tahu.h
-        ${TAHU_C_SRC_DIR}/tahu.pb.c ${TAHU_C_INCLUDE_DIR}/tahu.pb.h
+#        ${TAHU_C_SRC_DIR}/pb_common.c ${TAHU_C_INCLUDE_DIR}/pb_common.h
+#        ${TAHU_C_INCLUDE_DIR}/pb.h
+#        ${TAHU_C_SRC_DIR}/pb_decode.c ${TAHU_C_INCLUDE_DIR}/pb_decode.h
+#        ${TAHU_C_SRC_DIR}/pb_encode.c ${TAHU_C_INCLUDE_DIR}/pb_encode.h
+#        ${TAHU_C_SRC_DIR}/tahu.c ${TAHU_C_INCLUDE_DIR}/tahu.h
+#        ${TAHU_C_SRC_DIR}/tahu.pb.c ${TAHU_C_INCLUDE_DIR}/tahu.pb.h
         src/imetric.cpp include/pubsub/imetric.h
         src/ipayload.cpp include/pubsub/ipayload.h
         src/payloadhelper.cpp src/payloadhelper.h

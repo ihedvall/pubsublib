@@ -4,7 +4,7 @@
 project(TestPubSub
         VERSION 1.0
         DESCRIPTION "Google unit tests for the pubsub library"
-        LANGUAGES CXX)
+        LANGUAGES CXX C)
 
 add_executable(test_pubsub
        test_mqtt.cpp test_payload.cpp)
@@ -20,7 +20,7 @@ cmake_print_properties(TARGETS test_pubsub PROPERTIES INCLUDE_DIRECTORIES)
 target_link_libraries(test_pubsub PRIVATE util)
 target_link_libraries(test_pubsub PRIVATE pubsub)
 target_link_libraries(test_pubsub PRIVATE ${Boost_LIBRARIES})
-target_link_libraries(test_pubsub PRIVATE ${EXPAT_LIBRARIES})
+target_link_libraries(test_pubsub PRIVATE expat)
 #target_link_libraries(test_pubsub PRIVATE ${ZLIB_LIBRARIES})
 target_link_libraries(test_pubsub PRIVATE ${GTEST_BOTH_LIBRARIES})
 target_link_libraries(test_pubsub PRIVATE ${OPENSSL_LIBRARIES})

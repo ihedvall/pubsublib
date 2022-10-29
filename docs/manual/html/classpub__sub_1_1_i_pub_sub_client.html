@@ -91,6 +91,18 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>ClientId</b> (const s
 <tr class="memitem:a3862de451519df2ca3e6375730eff3f8"><td class="memItemLeft" align="right" valign="top"><a id="a3862de451519df2ca3e6375730eff3f8" name="a3862de451519df2ca3e6375730eff3f8"></a>
 const std::string &amp;&#160;</td><td class="memItemRight" valign="bottom"><b>ClientId</b> () const</td></tr>
 <tr class="separator:a3862de451519df2ca3e6375730eff3f8"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa4be30f7d9e80c31b00af000055ae4b1"><td class="memItemLeft" align="right" valign="top"><a id="aa4be30f7d9e80c31b00af000055ae4b1" name="aa4be30f7d9e80c31b00af000055ae4b1"></a>
+void&#160;</td><td class="memItemRight" valign="bottom"><b>GroupId</b> (const std::string &amp;group_id)</td></tr>
+<tr class="separator:aa4be30f7d9e80c31b00af000055ae4b1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a977b9d6e8fab06e56f2229e5f8543f97"><td class="memItemLeft" align="right" valign="top"><a id="a977b9d6e8fab06e56f2229e5f8543f97" name="a977b9d6e8fab06e56f2229e5f8543f97"></a>
+const std::string &amp;&#160;</td><td class="memItemRight" valign="bottom"><b>GroupId</b> () const</td></tr>
+<tr class="separator:a977b9d6e8fab06e56f2229e5f8543f97"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a06ba461c61d1610cc699e187c65210db"><td class="memItemLeft" align="right" valign="top"><a id="a06ba461c61d1610cc699e187c65210db" name="a06ba461c61d1610cc699e187c65210db"></a>
+void&#160;</td><td class="memItemRight" valign="bottom"><b>NodeId</b> (const std::string &amp;node_id)</td></tr>
+<tr class="separator:a06ba461c61d1610cc699e187c65210db"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6fb4509929a3c361c663dfae3daa3c2f"><td class="memItemLeft" align="right" valign="top"><a id="a6fb4509929a3c361c663dfae3daa3c2f" name="a6fb4509929a3c361c663dfae3daa3c2f"></a>
+const std::string &amp;&#160;</td><td class="memItemRight" valign="bottom"><b>NodeId</b> () const</td></tr>
+<tr class="separator:a6fb4509929a3c361c663dfae3daa3c2f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a92b1b20df97c4b0c95ceb3a5f2c4ebc2"><td class="memItemLeft" align="right" valign="top"><a id="a92b1b20df97c4b0c95ceb3a5f2c4ebc2" name="a92b1b20df97c4b0c95ceb3a5f2c4ebc2"></a>
 void&#160;</td><td class="memItemRight" valign="bottom"><b>Transport</b> (TransportLayer transport)</td></tr>
 <tr class="separator:a92b1b20df97c4b0c95ceb3a5f2c4ebc2"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -118,26 +130,32 @@ ProtocolVersion&#160;</td><td class="memItemRight" valign="bottom"><b>Version</b
 <tr class="memitem:a1ff86b4db323bb0d874d694a0ecd55c8"><td class="memItemLeft" align="right" valign="top"><a id="a1ff86b4db323bb0d874d694a0ecd55c8" name="a1ff86b4db323bb0d874d694a0ecd55c8"></a>
 virtual <a class="el" href="classpub__sub_1_1_i_topic.html">ITopic</a> *&#160;</td><td class="memItemRight" valign="bottom"><b>CreateTopic</b> ()=0</td></tr>
 <tr class="separator:a1ff86b4db323bb0d874d694a0ecd55c8"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a44eb323dffc2d5b7a17614fdde97865c"><td class="memItemLeft" align="right" valign="top"><a id="a44eb323dffc2d5b7a17614fdde97865c" name="a44eb323dffc2d5b7a17614fdde97865c"></a>
-virtual bool&#160;</td><td class="memItemRight" valign="bottom"><b>FetchTopics</b> (const std::string &amp;search_topic, std::set&lt; std::string &gt; &amp;topic_list)=0</td></tr>
-<tr class="separator:a44eb323dffc2d5b7a17614fdde97865c"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a2b45d9d9ac595f883bc2e33c514c6c76"><td class="memItemLeft" align="right" valign="top"><a id="a2b45d9d9ac595f883bc2e33c514c6c76" name="a2b45d9d9ac595f883bc2e33c514c6c76"></a>
-<a class="el" href="classpub__sub_1_1_i_topic.html">ITopic</a> *&#160;</td><td class="memItemRight" valign="bottom"><b>GetTopic</b> (const std::string &amp;topic)</td></tr>
-<tr class="separator:a2b45d9d9ac595f883bc2e33c514c6c76"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a4ce09a6dd0f09b21d11c514d624ac8df"><td class="memItemLeft" align="right" valign="top"><a id="a4ce09a6dd0f09b21d11c514d624ac8df" name="a4ce09a6dd0f09b21d11c514d624ac8df"></a>
-<a class="el" href="classpub__sub_1_1_i_topic.html">ITopic</a> *&#160;</td><td class="memItemRight" valign="bottom"><b>GetITopic</b> (const std::string &amp;topic)</td></tr>
-<tr class="separator:a4ce09a6dd0f09b21d11c514d624ac8df"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:accae8bfd1937d319ab2aaccf513b89c9"><td class="memItemLeft" align="right" valign="top"><a id="accae8bfd1937d319ab2aaccf513b89c9" name="accae8bfd1937d319ab2aaccf513b89c9"></a>
-const TopicList &amp;&#160;</td><td class="memItemRight" valign="bottom"><b>Topics</b> () const</td></tr>
-<tr class="separator:accae8bfd1937d319ab2aaccf513b89c9"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aa66fd27b9a3ee4ceedb3744ea1f80427"><td class="memItemLeft" align="right" valign="top"><a id="aa66fd27b9a3ee4ceedb3744ea1f80427" name="aa66fd27b9a3ee4ceedb3744ea1f80427"></a>
-virtual void&#160;</td><td class="memItemRight" valign="bottom"><b>Start</b> ()=0</td></tr>
-<tr class="memdesc:aa66fd27b9a3ee4ceedb3744ea1f80427"><td class="mdescLeft">&#160;</td><td class="mdescRight">Connects to the MQTT server. <br /></td></tr>
-<tr class="separator:aa66fd27b9a3ee4ceedb3744ea1f80427"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a7d9f4350fe440de033d9233a591d61cb"><td class="memItemLeft" align="right" valign="top"><a id="a7d9f4350fe440de033d9233a591d61cb" name="a7d9f4350fe440de033d9233a591d61cb"></a>
-virtual void&#160;</td><td class="memItemRight" valign="bottom"><b>Stop</b> ()=0</td></tr>
-<tr class="memdesc:a7d9f4350fe440de033d9233a591d61cb"><td class="mdescLeft">&#160;</td><td class="mdescRight">Disconnect from the MQTT server. <br /></td></tr>
-<tr class="separator:a7d9f4350fe440de033d9233a591d61cb"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac453277c7cb8cda31d9b987e34753cd4"><td class="memItemLeft" align="right" valign="top"><a id="ac453277c7cb8cda31d9b987e34753cd4" name="ac453277c7cb8cda31d9b987e34753cd4"></a>
+<a class="el" href="classpub__sub_1_1_i_topic.html">ITopic</a> *&#160;</td><td class="memItemRight" valign="bottom"><b>GetTopic</b> (const std::string &amp;topic_name)</td></tr>
+<tr class="separator:ac453277c7cb8cda31d9b987e34753cd4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa80c7d87528b23a53af6162c5ba95217"><td class="memItemLeft" align="right" valign="top"><a id="aa80c7d87528b23a53af6162c5ba95217" name="aa80c7d87528b23a53af6162c5ba95217"></a>
+<a class="el" href="classpub__sub_1_1_i_topic.html">ITopic</a> *&#160;</td><td class="memItemRight" valign="bottom"><b>GetITopic</b> (const std::string &amp;topic_name)</td></tr>
+<tr class="separator:aa80c7d87528b23a53af6162c5ba95217"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab0f833d43d5e28b07be6c454d419a644"><td class="memItemLeft" align="right" valign="top"><a id="ab0f833d43d5e28b07be6c454d419a644" name="ab0f833d43d5e28b07be6c454d419a644"></a>
+<a class="el" href="classpub__sub_1_1_i_topic.html">ITopic</a> *&#160;</td><td class="memItemRight" valign="bottom"><b>GetTopicByMessageType</b> (const std::string &amp;message_type)</td></tr>
+<tr class="separator:ab0f833d43d5e28b07be6c454d419a644"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5205edacca20b288c532884b9577757b"><td class="memItemLeft" align="right" valign="top"><a id="a5205edacca20b288c532884b9577757b" name="a5205edacca20b288c532884b9577757b"></a>
+void&#160;</td><td class="memItemRight" valign="bottom"><b>DeleteTopic</b> (const std::string &amp;topic_name)</td></tr>
+<tr class="separator:a5205edacca20b288c532884b9577757b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1c259e2459c562364dc51bfaad7ee756"><td class="memItemLeft" align="right" valign="top"><a id="a1c259e2459c562364dc51bfaad7ee756" name="a1c259e2459c562364dc51bfaad7ee756"></a>
+void&#160;</td><td class="memItemRight" valign="bottom"><b>ClearTopic</b> ()</td></tr>
+<tr class="separator:a1c259e2459c562364dc51bfaad7ee756"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa1725d307ce2e4619d84de89b2370900"><td class="memItemLeft" align="right" valign="top"><a id="aa1725d307ce2e4619d84de89b2370900" name="aa1725d307ce2e4619d84de89b2370900"></a>
+virtual bool&#160;</td><td class="memItemRight" valign="bottom"><b>Start</b> ()=0</td></tr>
+<tr class="memdesc:aa1725d307ce2e4619d84de89b2370900"><td class="mdescLeft">&#160;</td><td class="mdescRight">Connects to the MQTT server. <br /></td></tr>
+<tr class="separator:aa1725d307ce2e4619d84de89b2370900"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad9e674d6db0e2c854f27486c09e8bffa"><td class="memItemLeft" align="right" valign="top"><a id="ad9e674d6db0e2c854f27486c09e8bffa" name="ad9e674d6db0e2c854f27486c09e8bffa"></a>
+virtual bool&#160;</td><td class="memItemRight" valign="bottom"><b>Stop</b> ()=0</td></tr>
+<tr class="memdesc:ad9e674d6db0e2c854f27486c09e8bffa"><td class="mdescLeft">&#160;</td><td class="mdescRight">Disconnect from the MQTT server. <br /></td></tr>
+<tr class="separator:ad9e674d6db0e2c854f27486c09e8bffa"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a222be135651a0003360dcdcb856ddfa0"><td class="memItemLeft" align="right" valign="top"><a id="a222be135651a0003360dcdcb856ddfa0" name="a222be135651a0003360dcdcb856ddfa0"></a>
+virtual bool&#160;</td><td class="memItemRight" valign="bottom"><b>IsConnected</b> () const =0</td></tr>
+<tr class="separator:a222be135651a0003360dcdcb856ddfa0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="pro-attribs" name="pro-attribs"></a>
 Protected Attributes</h2></td></tr>
@@ -160,6 +178,16 @@ uint16_t&#160;</td><td class="memItemRight" valign="bottom"><b>port_</b> = 1883<
 <tr class="memitem:ad80d64b4704e800042f1b81b65083849"><td class="memItemLeft" align="right" valign="top"><a id="ad80d64b4704e800042f1b81b65083849" name="ad80d64b4704e800042f1b81b65083849"></a>
 std::string&#160;</td><td class="memItemRight" valign="bottom"><b>client_id_</b></td></tr>
 <tr class="separator:ad80d64b4704e800042f1b81b65083849"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7305fd238de3cb1b6f28ad158df5cbf1"><td class="memItemLeft" align="right" valign="top"><a id="a7305fd238de3cb1b6f28ad158df5cbf1" name="a7305fd238de3cb1b6f28ad158df5cbf1"></a>
+std::string&#160;</td><td class="memItemRight" valign="bottom"><b>group_id_</b></td></tr>
+<tr class="separator:a7305fd238de3cb1b6f28ad158df5cbf1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a62e204ac971fb65a22122da7ee0faac3"><td class="memItemLeft" align="right" valign="top"><a id="a62e204ac971fb65a22122da7ee0faac3" name="a62e204ac971fb65a22122da7ee0faac3"></a>
+std::string&#160;</td><td class="memItemRight" valign="bottom"><b>node_id_</b></td></tr>
+<tr class="separator:a62e204ac971fb65a22122da7ee0faac3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3198981e5d973f906ff4fa2d1eb0bfb9"><td class="memItemLeft" align="right" valign="top"><a id="a3198981e5d973f906ff4fa2d1eb0bfb9" name="a3198981e5d973f906ff4fa2d1eb0bfb9"></a>
+std::recursive_mutex&#160;</td><td class="memItemRight" valign="bottom"><b>topic_mutex</b></td></tr>
+<tr class="memdesc:a3198981e5d973f906ff4fa2d1eb0bfb9"><td class="mdescLeft">&#160;</td><td class="mdescRight">Thread protection of the topic list. <br /></td></tr>
+<tr class="separator:a3198981e5d973f906ff4fa2d1eb0bfb9"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a6e56c0ec31a5a9ed23384892816a9388"><td class="memItemLeft" align="right" valign="top"><a id="a6e56c0ec31a5a9ed23384892816a9388" name="a6e56c0ec31a5a9ed23384892816a9388"></a>
 TopicList&#160;</td><td class="memItemRight" valign="bottom"><b>topic_list_</b></td></tr>
 <tr class="memdesc:a6e56c0ec31a5a9ed23384892816a9388"><td class="mdescLeft">&#160;</td><td class="mdescRight">List of topics. <br /></td></tr>
