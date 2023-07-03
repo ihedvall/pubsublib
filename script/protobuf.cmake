@@ -1,5 +1,29 @@
 # Copyright 2022 Ingemar Hedvall
 # SPDX-License-Identifier: MIT
+if (NOT absl_FOUND)
+    set( absl_ROOT "k:/grpc/master")
+    find_package(absl CONFIG)
+    message(STATUS "absl Found (Try 1): " ${absl_FOUND})
+    cmake_print_properties(TARGETS absl::base PROPERTIES
+            INTERFACE_INCLUDE_DIRECTORIES
+            INTERFACE_LINK_LIBRARIES
+            LOCATION)
+    cmake_print_properties(TARGETS absl::log PROPERTIES
+            INTERFACE_INCLUDE_DIRECTORIES
+            INTERFACE_LINK_LIBRARIES
+            LOCATION)
+
+endif()
+
+if (NOT utf8_range_FOUND)
+    set( utf8_range_ROOT "k:/grpc/master")
+    find_package(utf8_range CONFIG)
+    message(STATUS "utf8_range Found (Try 1): " ${utf8_range_FOUND})
+    cmake_print_properties(TARGETS utf8_range::utf8_range PROPERTIES
+            INTERFACE_INCLUDE_DIRECTORIES
+            INTERFACE_LINK_LIBRARIES
+            LOCATION)
+endif()
 
 if (NOT Protobuf_FOUND)
     set(Protobuf_USE_STATIC_LIBS ON)

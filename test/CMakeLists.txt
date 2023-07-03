@@ -27,7 +27,24 @@ target_link_libraries(test_pubsub PRIVATE ${OPENSSL_LIBRARIES})
 target_link_libraries(test_pubsub PRIVATE eclipse-paho-mqtt-c::paho-mqtt3as-static)
 target_link_libraries(test_pubsub PRIVATE ${Protobuf_LIBRARIES})
 target_link_libraries(test_pubsub PRIVATE ${Protobuf_PROTOC_LIBRARIES})
+target_link_libraries(test_pubsub PRIVATE absl::algorithm
+        absl::base
+        absl::debugging
+        absl::flat_hash_map
+        absl::flags
+        absl::memory
+        absl::meta
+        absl::numeric
+        absl::random_random
+        absl::strings
+        absl::synchronization
+        absl::time
+        absl::utility)
 
+target_link_libraries(test_pubsub PRIVATE absl::log)
+target_link_libraries(test_pubsub PRIVATE absl::log_internal_check_op)
+target_link_libraries(test_pubsub PRIVATE utf8_range::utf8_range)
+target_link_libraries(test_pubsub PRIVATE utf8_range::utf8_validity)
 if (WIN32)
 target_link_libraries(test_pubsub PRIVATE ws2_32)
 target_link_libraries(test_pubsub PRIVATE mswsock)
