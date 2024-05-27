@@ -24,8 +24,8 @@ cmake_print_variables(eclipse-paho-mqtt-c_FOUND
 #        eclipse-paho-mqtt-c_VERSION
 #        PAHO_MQTT_C_INCLUDE_DIRS PAHO_MQTT_C_LIBRARIES
 #        PAHO_MQTT_CPP_INCLUDE_DIRS PAHO_MQTT_CPP_LIBRARIES)
-#cmake_print_properties(TARGETS eclipse-paho-mqtt-c::paho-mqtt3c-static
-#                               eclipse-paho-mqtt-c::paho-mqtt3a-static
-#                               eclipse-paho-mqtt-c::paho-mqtt3cs-static
-#                               eclipse-paho-mqtt-c::paho-mqtt3as-static
-#        PROPERTIES INTERFACE_INCLUDE_DIRECTORIES INTERFACE_LIBRARIES INTERFACE_LINK_LIBRARIES )
+cmake_print_properties(TARGETS eclipse-paho-mqtt-c::paho-mqtt3c-static
+                               eclipse-paho-mqtt-c::paho-mqtt3a-static
+                               eclipse-paho-mqtt-c::paho-mqtt3cs-static
+                               eclipse-paho-mqtt-c::paho-mqtt3as-static
+        PROPERTIES INTERFACE_INCLUDE_DIRECTORIES INTERFACE_LIBRARIES INTERFACE_LINK_LIBRARIES )

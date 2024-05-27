@@ -68,7 +68,7 @@ bool PropertyValue(const std::string& value) {
 }
 
 namespace pub_sub {
-void PayloadHelper::MetricToProtobuf(const IMetric &source, Payload_Metric &dest) {
+void PayloadHelper::MetricToProtobuf(const IValue &source, Payload_Metric &dest) {
   dest.set_name(source.Name());
   dest.set_alias(source.Alias());
   dest.set_timestamp(source.Timestamp());
@@ -120,11 +120,11 @@ void PayloadHelper::MetricToProtobuf(const IMetric &source, Payload_Metric &dest
   const auto& prop_list = source.Properties();
   if (!prop_list.empty()) {
     auto *props = new Payload_PropertySet;
-    for (const auto &prop: prop_list) {
-      if (prop.key.empty()) {
+    for (const auto& [name,prop]: prop_list) {
+      if (name.empty()) {
         continue;
       }
-      props->add_keys(prop.key);
+      props->add_keys(name);
       auto* prop_values = props->add_values();
       prop_values->set_type(static_cast<DataType>(prop.type));
 
@@ -172,29 +172,20 @@ void PayloadHelper::MetricToProtobuf(const IMetric &source, Payload_Metric &dest
   }
 }
 
-void PayloadHelper::ProtobufToMetric(const Payload_Metric &source, IMetric &dest) {
-  if (source.has_name()) {
-    dest.Name(source.name());
-  }
-  if (source.has_alias()) {
-    dest.Alias(source.alias());
-  }
+void PayloadHelper::ProtobufToMetric(const Payload_Metric &source, IValue &dest) {
+  dest.Name(source.name());
+  dest.Alias(source.alias());
 
-  if (source.has_timestamp()) {
-    dest.Timestamp(source.timestamp());
-  }
-  if (source.has_datatype()) {
-    dest.Type(static_cast<ValueType>(source.datatype()));
-  }
-  if (source.has_is_historical()) {
-    dest.IsHistorical(source.is_historical());
-  }
-  if (source.has_is_transient()) {
-    dest.IsTransient(source.is_transient());
-  }
-  if (source.has_is_null()) {
-    dest.IsNull(source.is_null());
-  }
+  dest.Timestamp(source.timestamp());
+
+  dest.Type(static_cast<ValueType>(source.datatype()));
+
+  dest.IsHistorical(source.is_historical());
+
+  dest.IsTransient(source.is_transient());
+
+  dest.IsNull(source.is_null());
+
 
   if (source.has_int_value()) {
     switch (dest.Type()) {
@@ -245,8 +236,8 @@ void PayloadHelper::ProtobufToMetric(const Payload_Metric &source, IMetric &dest
       const auto& prop_value = props.values(key);
       Property new_prop;
       new_prop.key = prop_key;
-      new_prop.type = prop_value.has_type() ? static_cast<ValueType>(prop_value.type()) : ValueType::String;
-      new_prop.is_null = prop_value.has_is_null() && prop_value.is_null();
+      new_prop.type = static_cast<ValueType>(prop_value.type());
+      new_prop.is_null = prop_value.is_null();
       if (prop_value.has_int_value()) {
         switch (new_prop.type) {
           case ValueType::Int8:

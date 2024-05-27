@@ -62,6 +62,11 @@ void MqttTopic::OnSendFailure(void *context, MQTTAsync_failureData *response) {
   if (topic != nullptr) {
     topic->message_sent_ = true;
     topic->message_failed_ = true;
+
+    auto& value = topic->Value();
+    if (value) {
+      value->IsNull(true);
+    }
     auto& listen = topic->parent_.Listen();
     if (listen.IsActive() && response != nullptr) {
       const auto payload = topic->Payload<std::string>();
@@ -77,6 +82,11 @@ void MqttTopic::OnSend(void *context, MQTTAsync_successData *response) {
   if (topic != nullptr) {
     topic->message_sent_ = true;
     topic->message_failed_ = false;
+
+    auto& value = topic->Value();
+    if (value) {
+      value->IsNull(false);
+    }
     auto& listen = topic->parent_.Listen();
     if (listen.IsActive() && listen.LogLevel() == 3) {
       const auto payload = topic->Payload<std::string>();
@@ -91,6 +101,10 @@ void MqttTopic::OnSubscribeFailure(void *context, MQTTAsync_failureData *respons
   if (topic != nullptr) {
     topic->message_sent_ = true;
     topic->message_failed_ = true;
+    auto& value = topic->Value();
+    if (value) {
+      value->IsNull(true);
+    }
     auto& listen = topic->parent_.Listen();
     if (listen.IsActive() && response != nullptr) {
       listen.ListenText("Subscribe Failure: %s, Error: %s",
@@ -104,6 +118,10 @@ void MqttTopic::OnSubscribe(void *context, MQTTAsync_successData *response) {
   if (topic != nullptr) {
     topic->message_sent_ = true;
     topic->message_failed_ = false;
+    auto& value = topic->Value();
+    if (value) {
+      value->IsNull(false);
+    }
     auto& listen = topic->parent_.Listen();
     if (listen.IsActive() && listen.LogLevel() == 3) {
       listen.ListenText("Subscribe Sent: %s", topic->Topic().c_str());

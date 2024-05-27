@@ -46,10 +46,22 @@ void IPubSubClient::DeleteTopic(const std::string &topic_name) {
   }
 }
 
-void IPubSubClient::ClearTopic() {
+void IPubSubClient::ClearTopicList() {
   std::scoped_lock list_lock(topic_mutex);
   topic_list_.clear();
 }
+
+bool IPubSubClient::IsFaulty() const {
+  std::scoped_lock list_lock(topic_mutex);
+  return faulty_;
+}
+
+void IPubSubClient::SetFaulty(bool faulty, const std::string &error_text) {
+  std::scoped_lock list_lock(topic_mutex);
+  faulty_ = faulty;
+  last_error_ = error_text;
+}
+
 
 
 } // end namespace mqtt

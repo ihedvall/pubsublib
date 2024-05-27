@@ -9,7 +9,9 @@
 #include <vector>
 #include <cstdint>
 #include <mutex>
+#include <memory>
 #include "pubsub/ipayload.h"
+#include "pubsub/ivalue.h"
 
 namespace pub_sub {
 
@@ -105,10 +107,18 @@ class ITopic {
   virtual void DoSubscribe() = 0;
 
   [[nodiscard]] bool IsWildcard() const;
+
+  void Value(const std::shared_ptr<IValue>& value) {
+    value_ = value;
+  }
+  [[nodiscard]] std::shared_ptr<IValue>& Value() {
+    return value_;
+  }
  protected:
   mutable std::recursive_mutex topic_mutex_;
   bool       updated_ = false;
   uint64_t   update_counter_ = 0;
+  std::shared_ptr<IValue> value_; ///< Reference to a user value object.
 
   virtual void UpdatePayload(const std::vector<uint8_t>& payload);
 
@@ -128,6 +138,8 @@ class ITopic {
   bool publish_ = false;
   QualityOfService qos_ = QualityOfService::Qos0;
   bool retained_ = false;
+
+
 
   void AssignLevelName(size_t level, const std::string& name);
 };

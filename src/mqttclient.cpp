@@ -3,13 +3,16 @@
  * SPDX-License-Identifier: MIT
  */
 #include <chrono>
+#include <functional>
 #include "util/logstream.h"
 #include "util/utilfactory.h"
+#include "util/timestamp.h"
 #include "mqttclient.h"
 #include "mqtttopic.h"
 
 using namespace std::chrono_literals;
 using namespace util::log;
+using namespace util::time;
 
 namespace {
 
@@ -25,7 +28,48 @@ MqttClient::~MqttClient() {
     listen_->ListenText("Stopping client");
   }
   MqttClient::Stop();
+  for (auto& topic : topic_list_ ) {
+    if (!topic) {
+      continue;
+    }
+    auto& value = topic->Value();
+    if (value) {
+      value->SetPublish(nullptr);
+    }
+  }
   listen_.reset();
+}
+
+ITopic *MqttClient::CreateTopic() {
+
+  auto topic = std::make_unique<MqttTopic>(*this);
+  std::scoped_lock list_lock(topic_mutex);
+
+  topic_list_.emplace_back(std::move(topic));
+  return topic_list_.back().get();
+}
+
+
+ITopic *MqttClient::AddValue(const std::shared_ptr<IValue>& value) {
+  auto* topic = CreateTopic(); // Note that this call adds the topic to its list.
+  if ( topic == nullptr) {
+    return nullptr;
+  }
+  topic->Topic(value->Name());
+
+  // Set default value
+  const auto payload = value->GetMqttString();
+  if (value->IsNull()) {
+    topic->Payload("");
+  } else {
+    topic->Payload(payload);
+  }
+  value->SetPublish([this] (IValue& value) { OnPublish(value); });
+  topic->Value(value);
+
+
+
+  return topic;
 }
 
 bool MqttClient::IsConnected() const {
@@ -33,8 +77,9 @@ bool MqttClient::IsConnected() const {
 }
 
 bool MqttClient::Start() {
-  if (!ClientId().empty()) {
-    listen_->PreText(ClientId());
+  SetFaulty(false, "");
+  if (!Name().empty() && listen_) {
+    listen_->PreText(Name());
   }
 
   std::ostringstream connect_string;
@@ -56,24 +101,42 @@ bool MqttClient::Start() {
       break;
   }
   connect_string << Broker() << ":" << Port();
-  if (listen_->IsActive()) {
+  if (listen_->IsActive() && listen_) {
     listen_->ListenText("Creating client");
   }
 
-  const auto create = MQTTAsync_create(&handle_, connect_string.str().c_str(), client_id_.c_str(),
+  const auto create = MQTTAsync_create(&handle_, connect_string.str().c_str(),
+                                       name_.c_str(),
                                  MQTTCLIENT_PERSISTENCE_NONE, nullptr);
   if (create != MQTTASYNC_SUCCESS) {
-    LOG_ERROR() << "Failed to create the MQTT handle. Error: " << MQTTAsync_strerror(create);
+    std::ostringstream err;
+    err << "Failed to create the MQTT handle.";
+    const auto* cause = MQTTAsync_strerror(create);
+    if (cause != nullptr && strlen(cause) > 0) {
+      err << "Error: " << cause;
+    }
+    SetFaulty(true, err.str());
+    LOG_ERROR() << err.str();
     return false;
   }
 
-  const auto callback = MQTTAsync_setCallbacks(handle_, this, OnConnectionLost, OnMessageArrived, OnDeliveryComplete);
-  if (create != MQTTASYNC_SUCCESS) {
-    LOG_ERROR() << "Failed to set the MQTT callbacks. Error: " << MQTTAsync_strerror(callback);
+  const auto callback = MQTTAsync_setCallbacks(handle_, this,
+                                               OnConnectionLost,
+                                               OnMessageArrived,
+                                               OnDeliveryComplete);
+  if (callback != MQTTASYNC_SUCCESS) {
+    std::ostringstream err;
+    err << "Failed to set the MQTT callbacks.";
+    const auto* cause = MQTTAsync_strerror(callback);
+    if (cause != nullptr && strlen(cause) > 0) {
+      err << "Error: " << cause;
+    }
+    SetFaulty(true, err.str());
+    LOG_ERROR() << err.str();
     return false;
   }
-  if (listen_->IsActive()) {
-    listen_->ListenText("Start client");
+  if (listen_->IsActive() && listen_) {
+    listen_->ListenText("Started client");
   }
   return SendConnect();
 }
@@ -83,15 +146,20 @@ bool MqttClient::SendConnect() {
   connect_options.keepAliveInterval = 60; // 60 seconds between keep alive messages
   connect_options.cleansession = MQTTASYNC_TRUE;
   connect_options.connectTimeout = 10; // Wait max 10 seconds on connect.
-  connect_options.onSuccess = MqttClient::OnConnect;
-  connect_options.onFailure = MqttClient::OnConnectFailure;
+  connect_options.onSuccess = OnConnect;
+  connect_options.onFailure = OnConnectFailure;
   connect_options.context = this;
-
-
 
   const auto connect = MQTTAsync_connect(handle_, &connect_options);
   if (connect != MQTTASYNC_SUCCESS) {
-    LOG_ERROR()  << "Failed to connect to the MQTT broker. Error: " << MQTTAsync_strerror(connect);
+    std::ostringstream err;
+    err << "Failed to connect to the MQTT broker.";
+    const auto* cause = MQTTAsync_strerror(connect);
+    if (cause != nullptr && strlen(cause) > 0) {
+      err << "Error: " << cause;
+    }
+    SetFaulty(true, err.str());
+    LOG_ERROR() << err.str();
     return false;
   }
   return true;
@@ -99,31 +167,42 @@ bool MqttClient::SendConnect() {
 
 bool MqttClient::Stop() {
   if (handle_ == nullptr) {
-    if (listen_->IsActive() && listen_->LogLevel() == 3) {
+    if (listen_ && listen_->IsActive() && listen_->LogLevel() == 3) {
       listen_->ListenText("Stop ignored due to not connected to server");
     }
     return true;
   }
 
-  if (listen_->IsActive() && listen_->LogLevel() == 3) {
+  if (listen_ && listen_->IsActive() && listen_->LogLevel() == 3) {
     listen_->ListenText("Disconnecting");
   }
   MQTTAsync_disconnectOptions disconnect_options = MQTTAsync_disconnectOptions_initializer;
-  disconnect_options.onSuccess = MqttClient::OnDisconnect;
-  disconnect_options.onFailure = MqttClient::OnDisconnectFailure;
+  disconnect_options.onSuccess = OnDisconnect;
+  disconnect_options.onFailure = OnDisconnectFailure;
   disconnect_options.context = this;
   disconnect_options.timeout = 5000;
   disconnect_ready_ = false;
   const auto disconnect = MQTTAsync_disconnect(handle_, &disconnect_options);
-  if (disconnect != MQTTASYNC_SUCCESS && listen_->IsActive()) {
-    listen_->ListenText("Failed to disconnect from the MQTT broker. Error: %s", MQTTAsync_strerror(disconnect));
+  if (disconnect != MQTTASYNC_SUCCESS) {
+    std::ostringstream err;
+    err << "Failed to disconnect from the MQTT broker.";
+    const auto* cause = MQTTAsync_strerror(disconnect);
+    if (cause != nullptr && strlen(cause) > 0) {
+      err << "Error: " << cause;
+    }
+    SetFaulty(true, err.str());
+    if (listen_ && listen_->IsActive()) {
+      listen_->ListenText("%s", err.str().c_str());
+    }
   }
   // Add a delay before deleting the async context handle so the disconnect get through.
   // The timeout is set to 5 seconds so wait max 10 seconds for a reply.
-  for (size_t timeout = 0; !disconnect_ready_ && disconnect == MQTTASYNC_SUCCESS && timeout < 100; ++timeout) {
-    std::this_thread::sleep_for(100ms);
+  for (size_t timeout = 0;
+       !disconnect_ready_ && disconnect == MQTTASYNC_SUCCESS && timeout < 1'000;
+       ++timeout) {
+    std::this_thread::sleep_for(10ms);
   }
-  if (listen_->IsActive() && listen_->LogLevel() == 3) {
+  if (listen_ && listen_->IsActive() && listen_->LogLevel() == 3) {
     listen_->ListenText("Disconnected");
   }
   MQTTAsync_destroy(&handle_);
@@ -131,20 +210,23 @@ bool MqttClient::Stop() {
   return true;
 }
 
-void MqttClient::OnConnectionLost(void *context, char *cause) {
-  auto *client = reinterpret_cast<MqttClient *>(context);
-  if (client != nullptr) {
-    if (client->listen_->IsActive()) {
-      client->listen_->ListenText("Connection lost. Cause: %s", (cause == nullptr ? "Unknown" : cause) );
-    }
+void MqttClient::ConnectionLost(const std::string& cause) {
+  std::ostringstream err;
+  err << "Connection lost.";
+  if (!cause.empty()) {
+    err << " Error: " << cause;
   }
-  MQTTAsync_free(cause);
+  SetFaulty(true, err.str());
+  if (listen_ && listen_->IsActive()) {
+    listen_->ListenText("%s", err.str().c_str() );
+  }
 }
-void MqttClient::OnMessage(const std::string& topic_name, MQTTAsync_message& message) {
+
+void MqttClient::Message(const std::string& topic_name, const MQTTAsync_message& message) {
   const auto qos = static_cast<QualityOfService>(message.qos);
   std::vector<uint8_t> payload(message.payloadlen, 0);
   if (message.payload != nullptr && message.payloadlen > 0) {
-    memcpy_s(payload.data(), payload.size(), message.payload, message.payloadlen);
+    std::memcpy(payload.data(), message.payload, message.payloadlen);
   }
   auto* topic = GetTopic(topic_name);
   if (topic == nullptr) {
@@ -155,93 +237,79 @@ void MqttClient::OnMessage(const std::string& topic_name, MQTTAsync_message& mes
   topic->Payload(payload);
   topic->Qos(qos);
   topic->Retained(message.retained == 1);
+  const auto& value = topic->Value();
+  if (value) {
+    const auto now = TimeStampToNs(); // MQTT doesn't supply a network time so use the computer time.
+    value->Timestamp(now);
+    const auto text = topic->Payload<std::string>();
+    value->Value(text);
+    value->OnUpdate();
+  }
 
   if (listen_ && listen_->IsActive() && listen_->LogLevel() != 1) {
     listen_->ListenText("Sub-Topic: %s, Value: %s", topic_name.c_str(),
                                 topic->Payload<std::string>().c_str());
   }
-
-}
-int MqttClient::OnMessageArrived(void* context, char* topic_name, int topicLen, MQTTAsync_message* message) {
-  auto *client = reinterpret_cast<MqttClient *>(context);
-  const std::string topic_id = topic_name != nullptr && topicLen == 0 ? topic_name : "";
-
-  if ( client != nullptr && message != nullptr && !topic_id.empty()) {
-    client->OnMessage(topic_id, *message);
-  }
-
-  if (topic_name != nullptr) {
-    MQTTAsync_free(topic_name);
-  }
-  if (message != nullptr) {
-    MQTTAsync_freeMessage(&message);
-  }
-  return MQTTASYNC_TRUE;
 }
 
-void MqttClient::OnDeliveryComplete(void *context, MQTTAsync_token token) {
-  auto *client = reinterpret_cast<MqttClient *>(context);
-  if (client != nullptr) {
-    if (client->listen_->IsActive() && client->listen_->LogLevel() == 3) {
-      client->listen_->ListenText("Delivered: Token: %d", token);
+void MqttClient::DeliveryComplete(MQTTAsync_token token) {
+  if (listen_ && listen_->IsActive() && listen_->LogLevel() == 3) {
+    listen_->ListenText("Delivered: Token: %d", token);
+  }
+}
+
+
+void MqttClient::Connect(const MQTTAsync_successData* response) {
+  SetFaulty(false,"");
+  if (response != nullptr && listen_ && listen_->IsActive()) {
+    const std::string server_url = response->alt.connect.serverURI;
+    const int version = response->alt.connect.MQTTVersion;
+    const int session_present = response->alt.connect.sessionPresent;
+    listen_->ListenText("Connected: Server: %s, Version: %d, Session: %d",
+                                server_url.c_str(), version, session_present);
+  }
+  DoConnect();
+}
+
+
+void MqttClient::ConnectFailure( MQTTAsync_failureData* response) {
+  std::ostringstream err;
+  err << "Connect failure.";
+  if (response != nullptr) {
+    const auto code = response->code;
+    const auto* cause = MQTTAsync_strerror(code);
+    if (cause != nullptr && strlen(cause) > 0) {
+      err << " Error: " << cause;
+    }
+    SetFaulty(true, err.str());
+  }
+  if (listen_ && listen_->IsActive()) {
+    listen_->ListenText("%s", err.str().c_str());
+  }
+}
+
+void MqttClient::Disconnect(MQTTAsync_successData* response) {
+  disconnect_ready_ = true;
+}
+
+void MqttClient::DisconnectFailure(MQTTAsync_failureData* response) {
+  if (response != nullptr) {
+    std::ostringstream err;
+    err << "Disconnect failure.";
+    const int code = response->code;
+    const auto* cause = MQTTAsync_strerror(code);
+    if (cause != nullptr && strlen(cause) > 0) {
+      err << " Error: " << cause;
+    }
+    SetFaulty(true, err.str());
+    if (listen_ && listen_->IsActive()) {
+      listen_->ListenText("%s", err.str().c_str());
     }
   }
+  disconnect_ready_ = true;
 }
 
-void MqttClient::OnConnect(void* context, MQTTAsync_successData* response) {
-  auto *client = reinterpret_cast<MqttClient *>(context);
-  if (client != nullptr) {
-    if (response != nullptr && client->listen_->IsActive()) {
-      const std::string server_url = response->alt.connect.serverURI;
-      const int version = response->alt.connect.MQTTVersion;
-      const int session_present = response->alt.connect.sessionPresent;
-      client->listen_->ListenText("Connected: Server: %s, Version: %d, Session: %d",
-                                  server_url.c_str(), version, session_present);
-    }
-    client->DoConnect();
-  }
-}
 
-void MqttClient::OnConnectFailure(void* context, MQTTAsync_failureData* response) {
-  auto *client = reinterpret_cast<MqttClient *>(context);
-  if (client != nullptr) {
-    if (response != nullptr && client->listen_->IsActive()) {
-      const int code = response->code;
-      client->listen_->ListenText("Connect failure. Code: %s", MQTTAsync_strerror(code));
-    }
-  }
-}
-
-void MqttClient::OnDisconnect(void* context, MQTTAsync_successData* response) {
-  auto *client = reinterpret_cast<MqttClient *>(context);
-  if (client != nullptr) {
-
-    if (client->listen_->IsActive()) {
-      client->listen_->ListenText("Disconnected callback");
-    }
-    client->disconnect_ready_ = true;
-  }
-}
-
-void MqttClient::OnDisconnectFailure(void* context, MQTTAsync_failureData* response) {
-  auto *client = reinterpret_cast<MqttClient *>(context);
-  if (client != nullptr) {
-    if (response != nullptr && client->listen_->IsActive()) {
-      const int code = response->code;
-      client->listen_->ListenText("Disconnection failure. Code: %s", MQTTAsync_strerror(code));
-    }
-    client->disconnect_ready_ = true;
-  }
-}
-
-ITopic *MqttClient::CreateTopic() {
-
-  auto topic = std::make_unique<MqttTopic>(*this);
-  std::scoped_lock list_lock(topic_mutex);
-
-  topic_list_.emplace_back(std::move(topic));
-  return topic_list_.back().get();
-}
 
 void MqttClient::DoConnect() {
   for (auto& topic : topic_list_) {
@@ -257,5 +325,76 @@ void MqttClient::DoConnect() {
 }
 
 
+void MqttClient::OnConnectionLost(void *context, char *cause) {
+  auto *client = reinterpret_cast<pub_sub::MqttClient *>(context);
+  std::string reason = cause != nullptr ? cause : "";
+  if (client != nullptr) {
+    client->ConnectionLost(reason);
+  }
+  if (cause != nullptr) {
+    MQTTAsync_free(cause);
+  }
+}
+
+int MqttClient::OnMessageArrived(void* context, char* topic_name, int topicLen, MQTTAsync_message* message) {
+  auto *client = reinterpret_cast<pub_sub::MqttClient *>(context);
+  const std::string topic_id = topic_name != nullptr && topicLen > 0 ? topic_name : "";
+
+  if (client != nullptr && message != nullptr && !topic_id.empty()) {
+    client->Message(topic_id, *message);
+  }
+
+  if (topic_name != nullptr) {
+    MQTTAsync_free(topic_name);
+  }
+  if (message != nullptr) {
+    MQTTAsync_freeMessage(&message);
+  }
+  return MQTTASYNC_TRUE;
+}
+
+void MqttClient::OnDeliveryComplete(void *context, MQTTAsync_token token) {
+  auto *client = reinterpret_cast<pub_sub::MqttClient *>(context);
+  if (client != nullptr) {
+    client->DeliveryComplete(token);
+  }
+}
+
+void MqttClient::OnConnect(void* context, MQTTAsync_successData* response) {
+  auto *client = reinterpret_cast<pub_sub::MqttClient *>(context);
+  if (client != nullptr && response != nullptr) {
+    client->Connect(response);
+  }
+}
+
+void MqttClient::OnConnectFailure(void* context, MQTTAsync_failureData* response) {
+  auto *client = reinterpret_cast<pub_sub::MqttClient *>(context);
+  if (client != nullptr) {
+    client->ConnectFailure(response);
+  }
+}
+
+void MqttClient::OnDisconnect(void* context, MQTTAsync_successData* response) {
+  auto *client = reinterpret_cast<pub_sub::MqttClient *>(context);
+  if (client != nullptr) {
+    client->Disconnect(response);
+  }
+}
+
+void MqttClient::OnDisconnectFailure(void* context, MQTTAsync_failureData* response) {
+  auto *client = reinterpret_cast<pub_sub::MqttClient *>(context);
+  if (client != nullptr) {
+    client->DisconnectFailure(response);
+  }
+}
+
+void MqttClient::OnPublish(IValue &value) {
+  auto* topic = GetTopic(value.Name());
+  if (topic == nullptr) {
+    return;
+  }
+  const auto payload_string = value.GetMqttString();
+  topic->Payload(payload_string);
+}
 
 } // end namespace

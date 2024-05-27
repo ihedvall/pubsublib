@@ -4,15 +4,15 @@
  */
 
 #pragma once
-#include "sparkplug_b.pb.h"
-#include "pubsub/imetric.h"
+#include "sparkplug_b_c_sharp.pb.h"
+#include "pubsub/ivalue.h"
 #include "pubsub/ipayload.h"
 namespace pub_sub {
 
 class PayloadHelper {
  public:
-  static void MetricToProtobuf(const IMetric& source, org::eclipse::tahu::protobuf::Payload_Metric& dest);
-  static void ProtobufToMetric(const org::eclipse::tahu::protobuf::Payload_Metric& source,  IMetric& dest);
+  static void MetricToProtobuf(const IValue& source, org::eclipse::tahu::protobuf::Payload_Metric& dest);
+  static void ProtobufToMetric(const org::eclipse::tahu::protobuf::Payload_Metric& source, IValue& dest);
   static void PayloadToProtobuf(const IPayload& source, org::eclipse::tahu::protobuf::Payload& dest);
 };
 

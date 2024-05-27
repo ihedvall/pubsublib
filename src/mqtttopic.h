@@ -22,6 +22,7 @@ class MqttTopic : public ITopic {
 
  private:
   MqttClient& parent_;
+
   std::vector<uint8_t> lrv_; ///< MQTT last reported value. Used as message buffer.
   std::atomic<bool> message_sent_ = true;
   std::atomic<bool> message_failed_ = false;

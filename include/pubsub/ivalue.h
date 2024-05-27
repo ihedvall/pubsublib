@@ -8,12 +8,22 @@
 #include <string>
 #include <sstream>
 #include <atomic>
+#include <utility>
 #include <vector>
+#include <map>
 #include <algorithm>
 #include <mutex>
+#include <functional>
 #include <util/timestamp.h>
 #include <util/stringutil.h>
 namespace pub_sub {
+
+/**
+ * @brief The ValueType enum class defines the various types of values that can be used in a system.
+ *
+ * The ValueType enum class contains a list of all the supported value types in the system.
+ * Each value type is represented by a unique identifier.
+ */
 enum class ValueType : uint32_t {
   Unknown         = 0,
   // Basic Types
@@ -58,6 +68,15 @@ enum class ValueType : uint32_t {
   DateTimeArray = 34,
 };
 
+/**
+ * @brief The Property struct represents a key-value pair with a specific value type.
+ *
+ * The Property struct contains the following members:
+ * - key: The key/name of the property (string).
+ * - type: The value type of the property (ValueType enum).
+ * - is_null: Indicates whether the property value is null or not (bool).
+ * - value: The actual value of the property, represented as a string.
+ */
 struct Property {
   std::string key;
   ValueType   type = ValueType::String;
@@ -65,16 +84,35 @@ struct Property {
   std::string value;
 };
 
-class IMetric {
- public:
-  using PropertyList = std::vector<Property>;
+/**
+ * @class IValue
+ * @brief The IValue class represents a generic value with various properties.
+ *
+ * The IValue class provides a flexible interface to a value in a public/subscribe communication
+ * interface. The interface are used when configure the system and when reading and updating the value.
+ *
+ * Note that in the basic MQTT protocol, no properties exist but in SparkPlug B properties are optional.
+ * This interface have interfaces to the most common properties as unit and description.
+ */
 
-  void Name(const std::string& name) {
-    name_ = name;
+class IValue {
+ public:
+  IValue() = default;
+  explicit IValue(std::string name);
+  explicit IValue(const std::string_view& name);
+
+  using PropertyList = std::map<std::string, Property>;
+
+  void Name(std::string name) {
+    name_ = std::move(name);
   }
   [[nodiscard]] const std::string& Name() const {
     return name_;
   }
+
+  void Unit(const std::string& unit);
+  [[nodiscard]] std::string Unit() const;
+
 
   void Alias(uint64_t alias) {
     alias_ = alias;
@@ -131,7 +169,20 @@ class IMetric {
   [[nodiscard]] T Value() const;
 
   void GetBody(std::vector<uint8_t>& dest) const;
+  std::string GetMqttString() const;
   [[nodiscard]] std::string DebugString() const;
+
+  void OnUpdate();
+  void SetOnUpdate(std::function<void()> on_update) {
+    on_update_ = std::move(on_update);
+  }
+
+  void Publish();
+  void SetPublish(std::function<void(IValue&)> on_publish) {
+    on_publish_ = std::move(on_publish);
+  }
+
+
  private:
   std::string name_;
   uint64_t alias_ = 0;
@@ -139,39 +190,47 @@ class IMetric {
   uint32_t datatype_ = 0;
   std::atomic<bool> is_historical_ = false;
   std::atomic<bool> is_transient_ = false;
-  std::atomic<bool> is_null_ = false;
+  std::atomic<bool> is_null_ = true;
   PropertyList property_list_;
   mutable std::recursive_mutex value_mutex_;
   std::string value_;
+  std::function<void()> on_update_;
+  std::function<void( IValue& )> on_publish_;
+
+
 };
 
 template<typename T>
-void IMetric::Value(T value) {
-  std::lock_guard lock(value_mutex_);
+void IValue::Value(T value) {
   try {
+    is_null_ = false;
+    std::lock_guard lock(value_mutex_);
     value_ = std::to_string(value);
   } catch (const std::exception& ) {
-
+    is_null_ = true;
   }
 }
 
 template<>
-void IMetric::Value(std::string value);
+void IValue::Value(std::string value);
 
 template<>
-void IMetric::Value(const char* value);
+void IValue::Value(std::string_view& value);
 
 template<>
-void IMetric::Value(bool value);
+void IValue::Value(const char* value);
 
 template<>
-void IMetric::Value(float value);
+void IValue::Value(bool value);
 
 template<>
-void IMetric::Value(double value);
+void IValue::Value(float value);
+
+template<>
+void IValue::Value(double value);
 
 template<typename T>
-T IMetric::Value() const {
+T IValue::Value() const {
   T temp = {};
   std::lock_guard lock(value_mutex_);
   try {
@@ -184,15 +243,15 @@ T IMetric::Value() const {
 
 
 template<>
-std::string IMetric::Value() const;
+std::string IValue::Value() const;
 
 template<>
-int8_t IMetric::Value() const;
+int8_t IValue::Value() const;
 
 template<>
-uint8_t IMetric::Value() const;
+uint8_t IValue::Value() const;
 
 template<>
-bool IMetric::Value() const;
+bool IValue::Value() const;
 
 } // end namespace

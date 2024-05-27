@@ -54,8 +54,8 @@ bool SparkPlugNode::SendConnect() {
   connect_options.keepAliveInterval = 60; // 60 seconds between keep alive messages
   connect_options.cleansession = MQTTASYNC_TRUE;
   connect_options.connectTimeout = 10; // Wait max 10 seconds on connect.
-  connect_options.onSuccess = MqttClient::OnConnect;
-  connect_options.onFailure = MqttClient::OnConnectFailure;
+  connect_options.onSuccess = OnConnect;
+  connect_options.onFailure = OnConnectFailure;
   connect_options.context = this;
   connect_options.automaticReconnect = 1;
   connect_options.retryInterval = 10;
@@ -74,27 +74,28 @@ ITopic* SparkPlugNode::CreateNodeDeathTopic() {
   if (topic != nullptr) {
     return topic;
   }
-
+/*
   std::ostringstream topic_name;
   topic_name << "spvBv1.0/" << GroupId() << "/NDEATH/" << NodeId();
 
   topic = CreateTopic();
   topic->Topic(topic_name.str());
   topic->Namespace("spvBv1.0");
-  topic->GroupId(GroupId());
+  topic->GroupId("Group1");
   topic->MessageType("NDEATH");
-  topic->NodeId(NodeId());
+  topic->NodeId("Node1");
   topic->Publish(true);
   topic->Qos(QualityOfService::Qos1);
   topic->Retained(true);
 
-  auto bdSeq = std::make_unique<IMetric>();
+  auto bdSeq = std::make_unique<IValue>();
   bdSeq->Name("bdSeq");
   bdSeq->Type(ValueType::UInt64);
   bdSeq->Value(birth_death_sequence_number);
 
   auto& payload = topic->GetPayload();
   payload.AddMetric(bdSeq);
+  */
   return topic;
 }
 
@@ -103,6 +104,7 @@ ITopic *SparkPlugNode::CreateNodeBirthTopic() {
   if (topic != nullptr) {
     return topic;
   }
+  /*
   std::ostringstream topic_name;
   topic_name << "spvBv1.0/" << GroupId() << "/NBIRTH/" << NodeId();
 
@@ -116,14 +118,14 @@ ITopic *SparkPlugNode::CreateNodeBirthTopic() {
   topic->Qos(QualityOfService::Qos1);
   topic->Retained(true);
 
-  auto bdSeq = std::make_unique<IMetric>();
+  auto bdSeq = std::make_unique<IValue>();
   bdSeq->Name("bdSeq");
   bdSeq->Type(ValueType::UInt64);
   bdSeq->Value(birth_death_sequence_number);
 
   auto& payload = topic->GetPayload();
   payload.AddMetric(bdSeq);
-
+*/
   return topic;
 }
 

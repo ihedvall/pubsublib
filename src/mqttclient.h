@@ -23,7 +23,7 @@ class MqttClient : public IPubSubClient {
   [[nodiscard]] bool IsConnected() const override;
 
   [[nodiscard]] ITopic* CreateTopic() override;
-
+  [[nodiscard]] ITopic* AddValue(const std::shared_ptr<IValue>& value) override;
   [[nodiscard]] MQTTAsync Handle() const {
     return handle_;
   }
@@ -38,16 +38,26 @@ class MqttClient : public IPubSubClient {
 
   virtual bool SendConnect();
   virtual void DoConnect();
-  virtual void OnMessage(const std::string& topic_name, MQTTAsync_message& message);
+
+  void ConnectionLost(const std::string& cause);
+  virtual void Message(const std::string& topic_name, const MQTTAsync_message& message);
+  void DeliveryComplete(MQTTAsync_token token);
+  void Connect(const MQTTAsync_successData* response);
+  void ConnectFailure(MQTTAsync_failureData* response);
+  void Disconnect(MQTTAsync_successData* response);
+  void DisconnectFailure( MQTTAsync_failureData* response);
 
   static void OnConnectionLost(void *context, char *cause);
-  static int OnMessageArrived(void* context, char* topicName, int topicLen, MQTTAsync_message* message);
+  static int OnMessageArrived(void* context, char* topic_name, int topicLen, MQTTAsync_message* message);
   static void OnDeliveryComplete(void *context, MQTTAsync_token token);
   static void OnConnect(void* context, MQTTAsync_successData* response);
-  static void OnConnectFailure(void* context,  MQTTAsync_failureData* response);
+  static void OnConnectFailure(void* context, MQTTAsync_failureData* response);
   static void OnDisconnect(void* context, MQTTAsync_successData* response);
-  static void OnDisconnectFailure(void* context,  MQTTAsync_failureData* response);
+  static void OnDisconnectFailure(void* context, MQTTAsync_failureData* response);
+
+
  private:
+  void OnPublish(IValue& value);
 };
 
 

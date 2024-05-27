@@ -5,7 +5,7 @@
 
 #include <gtest/gtest.h>
 #include <util/timestamp.h>
-#include "sparkplug_b.pb.h"
+#include "sparkplug_b_c_sharp.pb.h"
 #include "pubsub/ipayload.h"
 #include "payloadhelper.h"
 using namespace util::time;
@@ -15,7 +15,9 @@ namespace pub_sub::test {
 
 TEST(Sparkplug, RawPayload) { // NOLINT
   DataType type = DataType::DateTime;
+
   Payload node_birth;
+
   node_birth.set_timestamp(TimeStampToNs() / 1'000'000);
   node_birth.set_seq(0);
 
@@ -47,7 +49,7 @@ TEST(Sparkplug, RawPayload) { // NOLINT
 }
 
 TEST(Sparkplug, MetricValue) {
-  IMetric metric;
+  IValue metric;
   for (int index = INT8_MIN; index <= INT8_MAX; ++index ) {
     const auto orig = static_cast<int8_t>(index);
     metric.Value(orig);
@@ -85,7 +87,7 @@ TEST(Sparkplug, MetricValue) {
     EXPECT_EQ(dest, UINT64_MAX);
   }
 
-  for (float index = -11.23; index < 11.23; index += 0.1 ) { // NOLINT
+  for (float index = -11.23F; index < 11.23F; index += 0.1F ) { // NOLINT
     metric.Value(index);
     const auto dest = metric.Value<float>();
     EXPECT_EQ(index, dest);
@@ -125,7 +127,7 @@ TEST(Sparkplug, MetricValue) {
 }
 
 TEST(Sparkplug, TestMetric) {
-  IMetric orig;
+  IValue orig;
   const auto ms_now = util::time::TimeStampToNs() / 1'000'000;
   const int8_t value = -11;
 
@@ -151,7 +153,7 @@ TEST(Sparkplug, TestMetric) {
   temp.ParseFromArray(body.data(), static_cast<int>(body.size()));
   std::cout << temp.DebugString() << std::endl;
 
-  IMetric dest;
+  IValue dest;
   PayloadHelper::ProtobufToMetric(temp, dest);
 
   std::cout << dest.DebugString() << std::endl;

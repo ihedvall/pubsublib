@@ -12,14 +12,14 @@
 #include <string>
 #include <atomic>
 #include <util/timestamp.h>
-#include "pubsub/imetric.h"
+#include "pubsub/ivalue.h"
 
 namespace pub_sub {
 
 class IPayload {
  public:
   using BodyList = std::vector<uint8_t>;
-  using MetricList = std::map<uint64_t, std::unique_ptr<IMetric>>;
+  using MetricList = std::map<uint64_t, std::unique_ptr<IValue>>;
 
   void Timestamp(uint64_t ms_since_1970) {
     timestamp_ = ms_since_1970;
@@ -51,9 +51,9 @@ class IPayload {
   [[nodiscard]] const BodyList& Body() const {
     return body_;
   }
-  void AddMetric(std::unique_ptr<IMetric>& metric);
-  [[nodiscard]] IMetric* GetMetric(uint64_t alias);
-  [[nodiscard]] IMetric* GetMetric(const std::string& name);
+  void AddMetric(std::unique_ptr<IValue>& metric);
+  [[nodiscard]] IValue* GetMetric(uint64_t alias);
+  [[nodiscard]] IValue* GetMetric(const std::string& name);
   [[nodiscard]] const MetricList& Metrics() const;
   void DeleteMetrics(const std::string& name);
 

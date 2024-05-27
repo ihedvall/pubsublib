@@ -12,6 +12,7 @@
 #include <functional>
 #include <set>
 #include <mutex>
+#include <atomic>
 #include "pubsub/itopic.h"
 
 namespace pub_sub {
@@ -29,20 +30,27 @@ enum class ProtocolVersion : int {
   Mqtt5 = 5
 };
 
+/**
+ * @brief The IPubSubClient class is an abstract interface for a publish-subscribe client.
+ *
+ * The class declares a generic interface to a public/subscriber top level objects as a MQTT client or
+ * a SparkPlug B server.
+ */
 class IPubSubClient {
  public:
   using TopicList = std::vector<std::unique_ptr<ITopic>>;
+  using ValueList = std::vector<std::shared_ptr<IValue>>;
 
   IPubSubClient() = default;
   virtual ~IPubSubClient() = default;
 
-  void ClientId(const std::string& client_id) {
-    client_id_ = client_id;
+  void Name(const std::string& name) {
+    name_ = name;
   }
-  [[nodiscard]] const std::string& ClientId() const {
-    return client_id_;
+  [[nodiscard]] const std::string& Name() const {
+    return name_;
   }
-
+/*
   void GroupId(const std::string& group_id) {
     group_id_ = group_id;
   }
@@ -56,7 +64,7 @@ class IPubSubClient {
   [[nodiscard]] const std::string& NodeId() const {
     return node_id_;
   }
-
+*/
   void Transport(TransportLayer transport) {
     transport_ = transport;
   }
@@ -85,28 +93,35 @@ class IPubSubClient {
     return version_;
   }
 
+  virtual ITopic* AddValue(const std::shared_ptr<IValue>& value) = 0;
+
   virtual ITopic* CreateTopic() = 0;
   ITopic* GetTopic(const std::string& topic_name);
   ITopic* GetITopic(const std::string& topic_name);
   ITopic* GetTopicByMessageType(const std::string& message_type);
   void DeleteTopic(const std::string& topic_name);
-  void ClearTopic();
+  void ClearTopicList();
 
   virtual bool Start() = 0; ///< Connects to the MQTT server.
   virtual bool Stop() = 0; ///< Disconnect from the MQTT server.
   [[nodiscard]] virtual bool IsConnected() const = 0;
+  [[nodiscard]] bool IsFaulty() const;
  protected:
-  ProtocolVersion version_ = ProtocolVersion::Mqtt3; ///< Using version 3.1.1 as default.
+  void SetFaulty(bool faulty, const std::string& error_text);
+  ProtocolVersion version_ = ProtocolVersion::Mqtt311; ///< Using version 3.1.1 as default.
   TransportLayer transport_ = TransportLayer::MqttTcp; ///< Defines the underlying transport protocol and encryption.
   std::string broker_ = "127.0.0.1"; ///< Address to the MQTT server (broker).
   uint16_t port_ = 1883; ///< The MQTT broker server port.
 
-  std::string client_id_;
-  std::string group_id_;
-  std::string node_id_;
+  std::string name_; ///< Name of the client
+  //std::string group_id_;
+  //std::string node_id_;
 
-  std::recursive_mutex topic_mutex; ///< Thread protection of the topic list
+  mutable std::recursive_mutex topic_mutex; ///< Thread protection of the topic list
   TopicList topic_list_; ///< List of topics.
+private:
+  bool faulty_ = false;
+  std::string last_error_;
 };
 
 

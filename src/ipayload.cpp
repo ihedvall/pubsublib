@@ -4,22 +4,22 @@
  */
 
 #include "pubsub/ipayload.h"
-#include "sparkplug_b.pb.h"
+#include "sparkplug_b_c_sharp.pb.h"
 #include "payloadhelper.h"
 using namespace org::eclipse::tahu::protobuf;
 
 namespace pub_sub {
-void IPayload::AddMetric(std::unique_ptr<IMetric>& metric) {
+void IPayload::AddMetric(std::unique_ptr<IValue>& metric) {
   const auto alias = metric->Alias();
   metric_list_.insert({alias, std::move(metric)});
 }
 
-IMetric *IPayload::GetMetric(uint64_t alias) {
+IValue *IPayload::GetMetric(uint64_t alias) {
   auto itr = metric_list_.find(alias);
   return itr == metric_list_.end() ? nullptr : itr->second.get();
 }
 
-IMetric *IPayload::GetMetric(const std::string &name) {
+IValue *IPayload::GetMetric(const std::string &name) {
   auto itr = std::ranges::find_if(metric_list_, [&] (const auto& metric) {
     return util::string::IEquals(name, metric.second->Name());
   });

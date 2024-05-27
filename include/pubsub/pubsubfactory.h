@@ -14,6 +14,7 @@ enum class PubSubType : int {
   SparkPlugNode = 2, ///< SparkPlug Edge of Node.
   SparkPlugClient = 3, ///< MQTT version 3.11 with SparkPlug interface.
   KafkaClient = 4, ///< Kafka client.
+  DetectMqttBroker = 5 ///< Specialized client that detect an MQTT broker
 };
 
 class PubSubFactory {
@@ -26,6 +27,9 @@ class PubSubFactory {
  * @return Smart pointer to a Pub/Sub client source.
  */
   static std::unique_ptr<IPubSubClient> CreatePubSubClient(PubSubType type);
+
+  static std::shared_ptr<IValue> CreateValue(const std::string_view& name);
+  static std::shared_ptr<IValue> CreateValue(const std::string& name);
 };
 
 } // pub_sub
