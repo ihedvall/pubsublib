@@ -28,10 +28,10 @@ ITopic *IPubSubClient::GetITopic(const std::string &topic_name) {
   return itr == topic_list_.end() ? nullptr : itr->get();
 }
 
-ITopic *IPubSubClient::GetTopicByMessageType(const std::string& message_type) {
+ITopic *IPubSubClient::GetTopicByMessageType(const std::string& message_type, bool publisher) {
   std::scoped_lock list_lock(topic_mutex);
   auto itr = std::ranges::find_if(topic_list_,[&] (const auto& topic) {
-    return topic && IEquals(message_type,topic->MessageType());
+    return topic && IEquals(message_type,topic->MessageType()) && topic->Publish() == publisher;
   });
   return itr == topic_list_.end() ? nullptr : itr->get();
 
@@ -62,6 +62,8 @@ void IPubSubClient::SetFaulty(bool faulty, const std::string &error_text) {
   last_error_ = error_text;
 }
 
-
+int IPubSubClient::GetUniqueToken() {
+  return unique_token++;
+}
 
 } // end namespace mqtt

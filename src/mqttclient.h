@@ -31,6 +31,8 @@ class MqttClient : public IPubSubClient {
     return *listen_;
   }
 
+  [[nodiscard]] bool IsOnline() const override;
+  [[nodiscard]] bool IsOffline() const override;
  protected:
   MQTTAsync handle_ = nullptr;
   std::unique_ptr<util::log::IListen> listen_;

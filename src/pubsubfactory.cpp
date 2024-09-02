@@ -6,6 +6,8 @@
 #include "pubsub/pubsubfactory.h"
 #include "mqttclient.h"
 #include "detectbroker.h"
+#include "sparkplugnode.h"
+#include "sparkplughost.h"
 
 namespace pub_sub {
 
@@ -25,6 +27,18 @@ std::unique_ptr<IPubSubClient> PubSubFactory::CreatePubSubClient(PubSubType type
       client = std::move(mqtt_client);
       break;
     }
+
+    case PubSubType::SparkplugNode: {
+      auto node = std::make_unique<SparkplugNode>();
+      client = std::move(node);
+      break;
+    }
+
+    case PubSubType::SparkplugHost: {
+        auto host = std::make_unique<SparkplugHost>();
+        client = std::move(host);
+        break;
+      }
 
     default:
       break;

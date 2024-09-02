@@ -11,8 +11,8 @@ namespace pub_sub {
 enum class PubSubType : int {
   Mqtt3Client = 0, ///< MQTT 3.11 client interface.
   Mqtt5Client = 1, ///< MQTT 5 client interface.
-  SparkPlugNode = 2, ///< SparkPlug Edge of Node.
-  SparkPlugClient = 3, ///< MQTT version 3.11 with SparkPlug interface.
+  SparkplugNode = 2, ///< Sparkplug Node interface.
+  SparkplugHost = 3, ///< Sparkplug Host interface.
   KafkaClient = 4, ///< Kafka client.
   DetectMqttBroker = 5 ///< Specialized client that detect an MQTT broker
 };

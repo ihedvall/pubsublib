@@ -50,24 +50,11 @@ class IPubSubClient {
   [[nodiscard]] const std::string& Name() const {
     return name_;
   }
-/*
-  void GroupId(const std::string& group_id) {
-    group_id_ = group_id;
-  }
-  [[nodiscard]] const std::string& GroupId() const {
-    return group_id_;
-  }
 
-  void NodeId(const std::string& node_id) {
-    node_id_ = node_id;
-  }
-  [[nodiscard]] const std::string& NodeId() const {
-    return node_id_;
-  }
-*/
   void Transport(TransportLayer transport) {
     transport_ = transport;
   }
+
   [[nodiscard]] TransportLayer Transport() const {
     return transport_;
   }
@@ -93,12 +80,17 @@ class IPubSubClient {
     return version_;
   }
 
-  virtual ITopic* AddValue(const std::shared_ptr<IValue>& value) = 0;
+  void InService(bool in_service) { in_service_ = in_service; }
+  [[nodiscard]] bool InService() const { return in_service_;}
 
+  virtual bool IsOnline() const = 0;
+  virtual bool IsOffline() const = 0;
+
+  virtual ITopic* AddValue(const std::shared_ptr<IValue>& value) = 0;
   virtual ITopic* CreateTopic() = 0;
   ITopic* GetTopic(const std::string& topic_name);
   ITopic* GetITopic(const std::string& topic_name);
-  ITopic* GetTopicByMessageType(const std::string& message_type);
+  ITopic* GetTopicByMessageType(const std::string& message_type, bool publisher = true);
   void DeleteTopic(const std::string& topic_name);
   void ClearTopicList();
 
@@ -106,22 +98,32 @@ class IPubSubClient {
   virtual bool Stop() = 0; ///< Disconnect from the MQTT server.
   [[nodiscard]] virtual bool IsConnected() const = 0;
   [[nodiscard]] bool IsFaulty() const;
+
+  void DefaultQualityOfService(QualityOfService quality) {
+    default_qos_ = quality;
+  }
+  [[nodiscard]] QualityOfService DefaultQualityOfService() const {
+    return default_qos_;
+  }
+  int GetUniqueToken();
  protected:
   void SetFaulty(bool faulty, const std::string& error_text);
+
   ProtocolVersion version_ = ProtocolVersion::Mqtt311; ///< Using version 3.1.1 as default.
   TransportLayer transport_ = TransportLayer::MqttTcp; ///< Defines the underlying transport protocol and encryption.
   std::string broker_ = "127.0.0.1"; ///< Address to the MQTT server (broker).
   uint16_t port_ = 1883; ///< The MQTT broker server port.
 
   std::string name_; ///< Name of the client
-  //std::string group_id_;
-  //std::string node_id_;
 
   mutable std::recursive_mutex topic_mutex; ///< Thread protection of the topic list
   TopicList topic_list_; ///< List of topics.
 private:
   bool faulty_ = false;
   std::string last_error_;
+  QualityOfService default_qos_ = QualityOfService::Qos1;
+  std::atomic<int> unique_token = 1;
+  std::atomic<bool> in_service_ = true; ///< Sets the client online of offline
 };
 
 

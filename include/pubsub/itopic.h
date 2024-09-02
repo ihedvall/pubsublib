@@ -27,7 +27,7 @@ class ITopic {
   virtual ~ITopic() = default;
 
   void Topic(const std::string& topic);
-  [[nodiscard]] const std::string& Topic() const;
+   [[nodiscard]] virtual const std::string& Topic() const;
 
   void Namespace(const std::string& name_space) {
     name_space_ = name_space;
@@ -114,6 +114,11 @@ class ITopic {
   [[nodiscard]] std::shared_ptr<IValue>& Value() {
     return value_;
   }
+
+  IValue* CreateMetric(const std::string& name);
+  const IValue* GetMetric(const std::string& name) const;
+  IValue* GetMetric(const std::string& name);
+
  protected:
   mutable std::recursive_mutex topic_mutex_;
   bool       updated_ = false;
@@ -138,8 +143,6 @@ class ITopic {
   bool publish_ = false;
   QualityOfService qos_ = QualityOfService::Qos0;
   bool retained_ = false;
-
-
 
   void AssignLevelName(size_t level, const std::string& name);
 };

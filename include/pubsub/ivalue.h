@@ -163,7 +163,7 @@ class IValue {
   void DeleteProperty(const std::string& key);
 
   template <typename T>
-  void Value(T value);
+  void Value(const T value);
 
   template<typename T>
   [[nodiscard]] T Value() const;

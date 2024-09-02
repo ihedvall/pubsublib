@@ -6,7 +6,9 @@
 #include "util/stringutil.h"
 #include "util/timestamp.h"
 #include "pubsub/itopic.h"
-
+namespace {
+constexpr std::string_view kSparkplugNamespace = "spBv1.0";
+}
 namespace pub_sub {
 
 void ITopic::Topic(const std::string &topic) {
@@ -29,6 +31,13 @@ void ITopic::Topic(const std::string &topic) {
   }
   if (level > 0 && temp.str().empty()) {
     AssignLevelName(level,temp.str());
+  }
+
+  // Handle special case of STATE message
+  if (Namespace() == kSparkplugNamespace && GroupId() == "STATE") {
+    NodeId(MessageType());
+    MessageType(GroupId());
+    GroupId("");
   }
 }
 
@@ -170,5 +179,19 @@ void ITopic::AssignLevelName(size_t level, const std::string &name) {
       break;
   }
 }
+
+IValue *ITopic::CreateMetric(const std::string &name) {
+  return payload_.CreateMetric(name);
+}
+
+const IValue *ITopic::GetMetric(const std::string &name) const {
+  return payload_.GetMetric(name);
+}
+
+IValue *ITopic::GetMetric(const std::string &name) {
+  return payload_.GetMetric(name);
+}
+
+
 
 } // end namespace util::mqtt

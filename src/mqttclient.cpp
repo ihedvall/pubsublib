@@ -78,7 +78,7 @@ bool MqttClient::IsConnected() const {
 
 bool MqttClient::Start() {
   SetFaulty(false, "");
-  if (!Name().empty() && listen_) {
+  if (listen_ && !Name().empty()) {
     listen_->PreText(Name());
   }
 
@@ -166,7 +166,7 @@ bool MqttClient::SendConnect() {
 }
 
 bool MqttClient::Stop() {
-  if (handle_ == nullptr) {
+  if (!IsConnected()) {
     if (listen_ && listen_->IsActive() && listen_->LogLevel() == 3) {
       listen_->ListenText("Stop ignored due to not connected to server");
     }
@@ -395,6 +395,13 @@ void MqttClient::OnPublish(IValue &value) {
   }
   const auto payload_string = value.GetMqttString();
   topic->Payload(payload_string);
+}
+
+bool MqttClient::IsOnline() const {
+  return IsConnected();
+}
+bool MqttClient::IsOffline() const {
+  return !IsConnected();
 }
 
 } // end namespace

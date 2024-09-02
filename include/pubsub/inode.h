@@ -5,13 +5,17 @@
 
 #pragma once
 #include <string>
+#include <vector>
+#include "pubsub/ipubsubclient.h"
 namespace pub_sub {
-    class INode {
+    class INode : public IPubSubClient {
     public:
-        void Name(const std::string& name) {name_ = name;}
-        [[nodiscard]] const std::string& Name() const { return name_;}
-    private:
-        std::string name_;
+      void AddSubscriptionByTopic(const std::string& topic_name);
+      void DeleteSubscriptionByTopic(const std::string& topic_name);
+      const std::vector<std::string>& Subscriptions() const;
+    protected:
+      std::vector<std::string> subscription_list_;
+
     };
 
 } // pub_sub

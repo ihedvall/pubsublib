@@ -9,7 +9,10 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY MultiThreadedDebugDLL)
 add_executable(test_pubsub
        test_mqtt.cpp test_mqtt.h
        test_payload.cpp
-        )
+        test_json.cpp
+        testsparkplug.cpp
+        testsparkplug.h
+)
 
 target_include_directories(test_pubsub PRIVATE ../include)
 target_include_directories(test_pubsub PRIVATE ../src)

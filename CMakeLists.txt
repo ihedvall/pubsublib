@@ -41,11 +41,16 @@ add_library(pubsub STATIC
         src/payloadhelper.cpp src/payloadhelper.h
         src/pubsubfactory.cpp include/pubsub/pubsubfactory.h
         src/sparkplugnode.cpp src/sparkplugnode.h
-        src/igroup.cpp  include/pubsub/igroup.h
-        include/pubsub/inode.cpp
+        src/inode.cpp
         include/pubsub/inode.h
         src/detectbroker.cpp
-        src/detectbroker.h)
+        src/detectbroker.h
+        src/sparkplughost.cpp
+        src/sparkplughost.h
+        src/sparkplughelper.cpp
+        src/sparkplughelper.h
+        src/sparkplugtopic.cpp
+        src/sparkplugtopic.h)
 
 protobuf_generate(
         TARGET pubsub
