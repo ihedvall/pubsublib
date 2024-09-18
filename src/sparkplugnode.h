@@ -5,13 +5,20 @@
 
 #pragma once
 #include <atomic>
+#include <condition_variable>
+#include <mutex>
+#include <thread>
 #include <MQTTAsync.h>
 #include <util/ilisten.h>
-#include "pubsub/inode.h"
+#include "pubsub/ipubsubclient.h"
+#include "sparkplughelper.h"
+
 
 namespace pub_sub {
 
-class SparkplugNode : public INode {
+class SparkplugDevice;
+
+class SparkplugNode : public IPubSubClient {
  public:
   SparkplugNode();
   ~SparkplugNode() override;
@@ -23,8 +30,9 @@ class SparkplugNode : public INode {
   [[nodiscard]] bool IsOffline() const override;
 
   ITopic* CreateTopic() override;
-  ITopic* AddValue(const std::shared_ptr<IValue>& value) override;
+  ITopic* AddMetric(const std::shared_ptr<IMetric>& value) override;
   [[nodiscard]] bool IsConnected() const override;
+
   [[nodiscard]] const std::string& ServerUri() const { return server_uri_; }
   [[nodiscard]] int ServerVersion() const { return server_version_; }
   [[nodiscard]] int ServerSession() const { return server_session_; }
@@ -32,16 +40,24 @@ class SparkplugNode : public INode {
   MQTTAsync& Handle() { return handle_; }
   util::log::IListen* Listen() { return listen_.get(); }
 
-  void NextToken(int next_token) { next_token_ = next_token;}
+  void ResetDelivered() { delivered_ = false;}
+  void SetDelivered() { delivered_ = true; }
   bool IsDelivered();
+
+  [[nodiscard]] IPubSubClient* CreateDevice(const std::string& device_name) override;
+  void DeleteDevice(const std::string& device_name) override;
+
+  [[nodiscard]] IPubSubClient* GetDevice(const std::string& device_name) override;
+  [[nodiscard]] const IPubSubClient* GetDevice(const std::string& device_name) const override;
 
  protected:
   MQTTAsync handle_ = nullptr;
   std::unique_ptr<util::log::IListen> listen_;
-  std::condition_variable host_event_;
+  std::condition_variable node_event_;
+  std::mutex node_mutex_;
+  std::thread work_thread_; ///< Handles the online connect and subscription
 
-  std::atomic<MQTTAsync_token> next_token_ = 0;
-  std::atomic<MQTTAsync_token> last_token_ = 0;
+  std::atomic<bool> delivered_ = false;
 
   std::string server_uri_;
   int server_version_ = 0;
@@ -70,11 +86,35 @@ class SparkplugNode : public INode {
   static void OnDisconnect(void* context, MQTTAsync_successData* response);
   static void OnDisconnectFailure(void* context, MQTTAsync_failureData* response);
  private:
+  using DeviceList =  std::map<std::string, std::unique_ptr<SparkplugDevice>, util::string::IgnoreCase>;
 
-  uint64_t birth_death_sequence_number = 0;
-  ITopic* CreateNodeDeathTopic();
-  ITopic* CreateNodeBirthTopic();
+  uint64_t bd_sequence_number_ = 0; ///< Birth/Death sequence number
 
+  enum class NodeState {
+    Idle,             ///< Initial state, wait on in-service
+    WaitOnConnect,    ///< Wait on connect
+    Online,
+    WaitOnDisconnect
+  };
+
+  std::atomic<NodeState> node_state_ = NodeState::Idle;
+  std::atomic<bool> stop_node_task_ = true;
+  uint64_t node_timer_ = SparkplugHelper::NowMs();
+  DeviceList device_list_; ///< Sparkplug devices in this node
+
+
+  bool CreateNode();
+  void CreateNodeDeathTopic();
+  void CreateNodeBirthTopic();
+  void PublishNodeBirth();
+  void PublishNodeDeath();
+  void PollDevices();
+
+  void NodeTask();
+  void DoIdle();
+  void DoWaitOnConnect();
+  void DoOnline();
+  void DoWaitOnDisconnect();
 
 };
 

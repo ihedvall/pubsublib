@@ -13,7 +13,7 @@
 #include <atomic>
 #include <util/timestamp.h>
 #include <util/stringutil.h>
-#include "pubsub/ivalue.h"
+#include "pubsub/imetric.h"
 
 namespace pub_sub {
 
@@ -26,7 +26,7 @@ class IPayload {
    * and it ignore case. Although case sensitive names are valid, it's
    * a really bad design that causes many issues.
    */
-  using MetricList = std::map<std::string, std::unique_ptr<IValue>,
+  using MetricList = std::map<std::string, std::shared_ptr<IMetric>,
       util::string::IgnoreCase>;
 
   /** \brief Sets the timestamp for the payload.
@@ -38,18 +38,9 @@ class IPayload {
    * In MQTT, the timestamp is set when the payload arrive
    * @param ms_since_1970
    */
-  void Timestamp(uint64_t ms_since_1970) {
-    timestamp_ = ms_since_1970;
-    auto* timestamp = GetMetric("timestamp");
-    if (timestamp != nullptr) {
-      timestamp->Value(ms_since_1970);
-    }
-  }
+  void Timestamp(uint64_t ms_since_1970, bool set_metrics = false);
 
-  [[nodiscard]] uint64_t Timestamp() const {
-    const auto* timestamp = GetMetric("timestamp");
-    return timestamp != nullptr ? timestamp->Value<uint64_t>() : timestamp_.load();
-  }
+  [[nodiscard]] uint64_t Timestamp() const;
 
   void SequenceNumber(uint64_t seq_no) const {
     sequence_number_ = seq_no;
@@ -58,16 +49,13 @@ class IPayload {
     return sequence_number_;
   }
 
-  void Uuid(const std::string& uuid) {
-    uuid_ = uuid;
-  }
-  [[nodiscard]] const std::string& Uuid() const {
-    return uuid_;
-  }
+  void Uuid(const std::string& uuid);
+  [[nodiscard]] std::string Uuid() const;
 
   void GenerateJson();
   void GenerateProtobuf();
-
+  void ParseSparkplugJson(bool create_metrics);
+  void ParseSparkplugProtobuf(bool create_metrics);
 
   void Body(const BodyList& body) {
     body_ = body;
@@ -78,12 +66,15 @@ class IPayload {
   [[nodiscard]] BodyList& Body() {
     return body_;
   }
+  void StringToBody(const std::string& body_text);
+  [[nodiscard]] std::string BodyToString() const;
 
-  IValue* CreateMetric(const std::string& name);
-  void AddMetric(std::unique_ptr<IValue>& metric);
-  [[nodiscard]] IValue* GetMetric(uint64_t alias);
-  [[nodiscard]] const IValue* GetMetric(const std::string& name) const;
-  [[nodiscard]] IValue* GetMetric(const std::string& name);
+  std::shared_ptr<IMetric> CreateMetric(const std::string& name);
+  void AddMetric(const std::shared_ptr<IMetric>& metric);
+
+  [[nodiscard]] std::shared_ptr<IMetric> GetMetric(uint64_t alias) const;
+  [[nodiscard]] std::shared_ptr<IMetric> GetMetric(const std::string& name) const;
+
   [[nodiscard]] const MetricList& Metrics() const;
   void DeleteMetrics(const std::string& name);
 
@@ -93,28 +84,25 @@ class IPayload {
   template<typename T>
   void SetValue(const std::string& name, T value);
   std::string MakeJsonString() const;
- protected:
-  std::atomic<uint64_t> timestamp_ = util::time::TimeStampToNs() / 1'000'000;
-  mutable uint64_t sequence_number_ = 0;
-  MetricList metric_list_;
-  BodyList body_; ///< This is the payload data
+
  private:
   std::string uuid_;
-
-
-
-
+  mutable std::recursive_mutex payload_mutex_;
+  std::atomic<uint64_t> timestamp_ = 0;
+  mutable std::atomic<uint64_t> sequence_number_ = 0;
+  MetricList metric_list_;
+  BodyList body_; ///< This is the payload data
 };
 
 template<typename T>
 T IPayload::GetValue(const std::string &name) const {
-  const IValue* metric = GetMetric(name);
-  return metric != nullptr ? metric->Value<T>() : T {};
+  auto metric = GetMetric(name);
+  return metric ? metric->Value<T>() : T {};
 }
 
 template<typename T>
 void IPayload::SetValue(const std::string &name, T value) {
-  if (IValue* metric = GetMetric(name); metric != nullptr ) {
+  if (auto metric = GetMetric(name); metric ) {
     metric->Value(value);
   }
 }

@@ -6,14 +6,12 @@
 #pragma once
 #include <cstdint>
 #include <string>
-#include <sstream>
 #include <atomic>
-#include <utility>
 #include <vector>
 #include <map>
-#include <algorithm>
 #include <mutex>
 #include <functional>
+
 #include <util/timestamp.h>
 #include <util/stringutil.h>
 namespace pub_sub {
@@ -24,7 +22,7 @@ namespace pub_sub {
  * The ValueType enum class contains a list of all the supported value types in the system.
  * Each value type is represented by a unique identifier.
  */
-enum class ValueType : uint32_t {
+enum class MetricType : uint32_t {
   Unknown         = 0,
   // Basic Types
   Int8            = 1,
@@ -69,7 +67,7 @@ enum class ValueType : uint32_t {
 };
 
 /**
- * @brief The Property struct represents a key-value pair with a specific value type.
+ * @brief The struct represents a key-value pair with a specific value type.
  *
  * The Property struct contains the following members:
  * - key: The key/name of the property (string).
@@ -77,15 +75,57 @@ enum class ValueType : uint32_t {
  * - is_null: Indicates whether the property value is null or not (bool).
  * - value: The actual value of the property, represented as a string.
  */
-struct Property {
+struct MetricProperty {
   std::string key;
-  ValueType   type = ValueType::String;
+  MetricType  type = MetricType::String;
   bool        is_null = false;
   std::string value;
+  std::vector<std::map<std::string, MetricProperty>> prop_list;
+
+  template <typename T>
+  [[nodiscard]] T Value() const {
+    T temp = {};
+    try {
+      std::istringstream str(value);
+      str >> temp;
+    } catch (const std::exception& ) {
+    }
+    return temp;
+  }
+
+  template<>
+  [[nodiscard]] std::string Value() const;
+
+  template<>
+  [[nodiscard]] int8_t Value() const;
+
+  template<>
+  [[nodiscard]] uint8_t Value() const;
+
+  template<>
+  [[nodiscard]] bool Value() const;
+
+};
+using MetricPropertyList = std::map<std::string, MetricProperty>;
+
+/** \brief Payload bytes specific metadata
+ *
+ */
+struct MetricMetaData {
+  bool is_multi_part = false; ///< True if this is a multi part message
+  std::string content_type;   ///< Content media type string
+  uint64_t size = 0;          ///< Number of bytes
+  uint64_t seq = 0;           ///< Multi-part sequence number
+  std::string file_name;      ///< File name
+  std::string file_type;      ///< File type as xml or json
+  std::string md5;            ///< MD5 checksum as string
+  std::string description;    ///< Description
+
 };
 
+
 /**
- * @class IValue
+ * @class IMetric
  * @brief The IValue class represents a generic value with various properties.
  *
  * The IValue class provides a flexible interface to a value in a public/subscribe communication
@@ -95,24 +135,14 @@ struct Property {
  * This interface have interfaces to the most common properties as unit and description.
  */
 
-class IValue {
+class IMetric {
  public:
-  IValue() = default;
-  explicit IValue(std::string name);
-  explicit IValue(const std::string_view& name);
+  IMetric() = default;
+  explicit IMetric(std::string name);
+  explicit IMetric(const std::string_view& name);
 
-  using PropertyList = std::map<std::string, Property>;
-
-  void Name(std::string name) {
-    name_ = std::move(name);
-  }
-  [[nodiscard]] const std::string& Name() const {
-    return name_;
-  }
-
-  void Unit(const std::string& unit);
-  [[nodiscard]] std::string Unit() const;
-
+  void Name(std::string name);
+  [[nodiscard]] std::string Name() const;
 
   void Alias(uint64_t alias) {
     alias_ = alias;
@@ -124,15 +154,20 @@ class IValue {
   void Timestamp(uint64_t ms_since_1970) {
     timestamp_ = ms_since_1970;
   }
+
   [[nodiscard]] uint64_t Timestamp() const {
     return timestamp_;
   }
 
-  void Type(ValueType type) {
+  void Unit(const std::string& unit);
+  [[nodiscard]] std::string Unit() const;
+
+  void Type(MetricType type) {
     datatype_ = static_cast<uint32_t >(type);
   }
-  [[nodiscard]] ValueType Type() const {
-    return static_cast<ValueType>(datatype_);
+
+  [[nodiscard]] MetricType Type() const {
+    return static_cast<MetricType>(datatype_.load());
   }
 
   void IsHistorical(bool historical_value) {
@@ -156,14 +191,36 @@ class IValue {
     return is_null_;
   }
 
-  void AddProperty(const Property& property);
-  const PropertyList& Properties() const {
+  void IsValid(bool valid) const {
+    valid_ = valid;
+  }
+  [[nodiscard]] bool IsValid() const {
+    return valid_;
+  }
+
+  void IsReadOnly(bool read_only) {
+    read_only_ = read_only;
+  }
+  [[nodiscard]] bool IsReadOnly() const {
+    return read_only_;
+  }
+
+  [[nodiscard]] MetricMetaData* CreateMetaData();
+  [[nodiscard]] MetricMetaData* GetMetaData();
+  [[nodiscard]] const MetricMetaData* GetMetaData() const;
+
+  void AddProperty(const MetricProperty& property);
+  [[nodiscard]] MetricProperty* CreateProperty(const std::string& key);
+  [[nodiscard]] MetricProperty* GetProperty(const std::string& key);
+  [[nodiscard]] const MetricProperty* GetProperty(const std::string& key) const;
+
+  const MetricPropertyList& Properties() const {
     return property_list_;
   }
   void DeleteProperty(const std::string& key);
 
   template <typename T>
-  void Value(const T value);
+  void Value(T value);
 
   template<typename T>
   [[nodiscard]] T Value() const;
@@ -178,80 +235,94 @@ class IValue {
   }
 
   void Publish();
-  void SetPublish(std::function<void(IValue&)> on_publish) {
+  void SetPublish(std::function<void(IMetric&)> on_publish) {
     on_publish_ = std::move(on_publish);
   }
 
+  void SetUpdated() { updated_ = true; }
+  [[nodiscard]] bool IsUpdated() {
+    bool upd = updated_;
+    updated_ = false;
+    return upd;
+  }
 
  private:
   std::string name_;
-  uint64_t alias_ = 0;
+  std::atomic<uint64_t> alias_ = 0;
   std::atomic<uint64_t> timestamp_ = 0;
-  uint32_t datatype_ = 0;
+  std::atomic<uint32_t> datatype_ = 0;
   std::atomic<bool> is_historical_ = false;
   std::atomic<bool> is_transient_ = false;
-  std::atomic<bool> is_null_ = true;
-  PropertyList property_list_;
-  mutable std::recursive_mutex value_mutex_;
+  std::atomic<bool> is_null_ = false;
+
+  mutable std::atomic<bool> valid_ = false; ///< Indicate if the metric is GOOD or STALE
+  std::atomic<bool> read_only_ = false; ///< Indicate if the metric can be changes remotely
+
+  MetricPropertyList property_list_;
+
+  mutable std::recursive_mutex metric_mutex_;
   std::string value_;
   std::function<void()> on_update_;
-  std::function<void( IValue& )> on_publish_;
+  std::function<void(IMetric& )> on_publish_;
+  std::unique_ptr<MetricMetaData> meta_data_;
 
-
+  std::atomic<bool> updated_ = false;
 };
 
 template<typename T>
-void IValue::Value(T value) {
+void IMetric::Value(T value) {
   try {
-    is_null_ = false;
-    std::lock_guard lock(value_mutex_);
+    std::scoped_lock lock(metric_mutex_);
     value_ = std::to_string(value);
+    IsValid(true);
   } catch (const std::exception& ) {
-    is_null_ = true;
+    IsValid(false);
   }
 }
 
 template<>
-void IValue::Value(std::string value);
+void IMetric::Value(std::string value);
 
 template<>
-void IValue::Value(std::string_view& value);
+void IMetric::Value(std::string_view& value);
 
 template<>
-void IValue::Value(const char* value);
+void IMetric::Value(const char* value);
 
 template<>
-void IValue::Value(bool value);
+void IMetric::Value(bool value);
 
 template<>
-void IValue::Value(float value);
+void IMetric::Value(float value);
 
 template<>
-void IValue::Value(double value);
+void IMetric::Value(double value);
 
 template<typename T>
-T IValue::Value() const {
+T IMetric::Value() const {
   T temp = {};
-  std::lock_guard lock(value_mutex_);
+
   try {
+    std::lock_guard lock(metric_mutex_);
     std::istringstream str(value_);
     str >> temp;
   } catch (const std::exception& ) {
+    IsValid(false);
   }
   return temp;
 }
 
 
 template<>
-std::string IValue::Value() const;
+std::string IMetric::Value() const;
 
 template<>
-int8_t IValue::Value() const;
+int8_t IMetric::Value() const;
 
 template<>
-uint8_t IValue::Value() const;
+uint8_t IMetric::Value() const;
 
 template<>
-bool IValue::Value() const;
+bool IMetric::Value() const;
 
 } // end namespace

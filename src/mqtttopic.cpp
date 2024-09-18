@@ -128,4 +128,9 @@ void MqttTopic::OnSubscribe(void *context, MQTTAsync_successData *response) {
     }
   }
 }
+
+void MqttTopic::ParsePayloadData() {
+  // Todo: Clean up the MQTT client design
+}
+
 }

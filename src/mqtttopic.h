@@ -18,6 +18,8 @@ class MqttTopic : public ITopic {
   MqttTopic() = delete;
   void DoPublish() override;
   void DoSubscribe() override;
+
+  void ParsePayloadData() override;
  protected:
 
  private:

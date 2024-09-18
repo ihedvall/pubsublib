@@ -23,7 +23,7 @@ class MqttClient : public IPubSubClient {
   [[nodiscard]] bool IsConnected() const override;
 
   [[nodiscard]] ITopic* CreateTopic() override;
-  [[nodiscard]] ITopic* AddValue(const std::shared_ptr<IValue>& value) override;
+  [[nodiscard]] ITopic* AddMetric(const std::shared_ptr<IMetric>& value) override;
   [[nodiscard]] MQTTAsync Handle() const {
     return handle_;
   }
@@ -59,7 +59,7 @@ class MqttClient : public IPubSubClient {
 
 
  private:
-  void OnPublish(IValue& value);
+  void OnPublish(IMetric& value);
 };
 
 

@@ -7,7 +7,6 @@
 
 #include <string_view>
 #include <chrono>
-#include "pubsub/itopic.h"
 #include "util/logstream.h"
 #include "sparkplughelper.h"
 #include <boost/json.hpp>
@@ -24,6 +23,10 @@ namespace pub_sub {
 SparkplugHost::SparkplugHost()
 : SparkplugNode() {
 
+}
+
+SparkplugHost::~SparkplugHost() {
+  SparkplugHost::Stop(); // Just in case it have not stopped before
 }
 
 bool SparkplugHost::Start() {
@@ -86,8 +89,8 @@ bool SparkplugHost::Start() {
     LOG_ERROR() << err.str();
     return false;
   }
-  if (listen_->IsActive() && listen_) {
-    listen_->ListenText("Started client");
+  if (listen_ && listen_->IsActive()) {
+    listen_->ListenText("Started Host: %s", Name().c_str());
   }
 
   // Create the worker task
@@ -98,13 +101,14 @@ bool SparkplugHost::Start() {
   CreateStateTopic();
 
   stop_work_task_ = false;
-  work_thread_ = std::thread(&SparkplugHost::WorkerTask, this);
+  work_thread_ = std::thread(&SparkplugHost::HostTask, this);
+  node_event_.notify_one();
   return true;
 }
 
 bool SparkplugHost::Stop() {
   stop_work_task_ = true;
-  host_event_.notify_one();
+  node_event_.notify_one();
   if (work_thread_.joinable()) {
     work_thread_.join();
   }
@@ -135,28 +139,58 @@ ITopic* SparkplugHost::CreateStateTopic() {
   topic->Retained(true);
   topic->ContentType("application/json");
 
-  auto* online = topic->CreateMetric("online");
-  online->Type(ValueType::Boolean);
+  auto& payload = topic->GetPayload();
+
+  auto online = payload.CreateMetric("online");
+  online->Type(MetricType::Boolean);
   online->Value(false); // Meaning OFFLINE by default
 
-  auto* timestamp = topic->CreateMetric("timestamp");
-  timestamp->Type(ValueType::UInt64);
-  timestamp->Value(start_time_);
+  // The timestamp is not necessary to add as it is mandatory
+  // and set by the Timestamp() function. We add it here to
+  // simplify the creation of JSON payload
+  auto timestamp = payload.CreateMetric("timestamp");
+  timestamp->Type(MetricType::UInt64);
+  payload.Timestamp(start_time_);
 
-  auto& payload = topic->GetPayload();
+  if (!HardwareMake().empty()) {
+    auto hardware_make = payload.CreateMetric("Properties/Hardware Make");
+    hardware_make->Type(MetricType::String);
+    hardware_make->Value(HardwareMake());
+  }
+
+  if (!HardwareModel().empty()) {
+    auto hardware_model = payload.CreateMetric("Properties/Hardware Model");
+    hardware_model->Type(MetricType::String);
+    hardware_model->Value(HardwareModel());
+  }
+
+  if (!OperatingSystem().empty()) {
+    auto operating_system = payload.CreateMetric("Properties/OS");
+    operating_system->Type(MetricType::String);
+    operating_system->Value(OperatingSystem());
+  }
+
+  if (!OsVersion().empty()) {
+    auto os_version = payload.CreateMetric("Properties/OS Version");
+    os_version->Type(MetricType::String);
+    os_version->Value(OsVersion());
+  }
+
+
   payload.GenerateJson();
   return topic;
 }
 
-void SparkplugHost::WorkerTask() {
-  // First send a connect message to the MQTT broker
+void SparkplugHost::HostTask() {
+
   auto now = SparkplugHelper::NowMs();
   uint64_t timer = now; // This ends the Idle wait
   work_state_ = WorkState::Idle;
 
   while (!stop_work_task_) {
-    std::unique_lock host_lock(host_mutex_);
-    host_event_.wait_for(host_lock,10ms);
+    std::unique_lock host_lock(node_mutex_);
+    node_event_.wait_for(host_lock, 100ms );
+
     now = SparkplugHelper::NowMs();
     const bool timeout = now >= timer;
 
@@ -230,7 +264,7 @@ void SparkplugHost::WorkerTask() {
 
       case WorkState::WaitOffline:
         if (timeout) {
-          LOG_ERROR() << "publish OFFLINE failed (timeout) " << next_token_ << "/" << last_token_;
+          LOG_ERROR() << "publish OFFLINE failed (timeout) ";
           work_state_ = WorkState::Offline;
         } else if (IsDelivered()) {
           work_state_ = WorkState::Offline;
@@ -335,7 +369,7 @@ bool SparkplugHost::SendConnect() {
 }
 
 void SparkplugHost::PublishState(bool online) {
-  auto* state_topic = GetTopicByMessageType("STATE", true);
+  auto* state_topic = GetTopicByMessageType("STATE");
   if (state_topic != nullptr) {
     auto& payload = state_topic->GetPayload();
     payload.Timestamp(SparkplugHelper::NowMs());
@@ -351,6 +385,19 @@ bool SparkplugHost::IsOnline() const {
 }
 bool SparkplugHost::IsOffline() const {
   return work_state_ == WorkState::Offline;
+}
+
+IPubSubClient *SparkplugHost::CreateDevice(const std::string &device_name) {
+  return IPubSubClient::CreateDevice(device_name);
+}
+void SparkplugHost::DeleteDevice(const std::string &device_name) {
+  IPubSubClient::DeleteDevice(device_name);
+}
+IPubSubClient *SparkplugHost::GetDevice(const std::string &device_name) {
+  return IPubSubClient::GetDevice(device_name);
+}
+const IPubSubClient *SparkplugHost::GetDevice(const std::string &device_name) const {
+  return IPubSubClient::GetDevice(device_name);
 }
 
 } // pub_sub

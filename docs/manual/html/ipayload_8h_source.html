@@ -105,7 +105,7 @@ $(document).ready(function() { init_codefold(0); });
 <div class="line"><a id="l00019" name="l00019"></a><span class="lineno"><a class="line" href="classpub__sub_1_1_i_payload.html">   19</a></span><span class="keyword">class </span><a class="code hl_class" href="classpub__sub_1_1_i_payload.html">IPayload</a> {</div>
 <div class="line"><a id="l00020" name="l00020"></a><span class="lineno">   20</span> <span class="keyword">public</span>:</div>
 <div class="line"><a id="l00021" name="l00021"></a><span class="lineno">   21</span>  <span class="keyword">using </span>BodyList = std::vector&lt;uint8_t&gt;;</div>
-<div class="line"><a id="l00022" name="l00022"></a><span class="lineno">   22</span>  <span class="keyword">using </span>MetricList = std::map&lt;uint64_t, std::unique_ptr&lt;IValue&gt;&gt;;</div>
+<div class="line"><a id="l00022" name="l00022"></a><span class="lineno">   22</span>  <span class="keyword">using </span>MetricList = std::map&lt;uint64_t, std::unique_ptr&lt;IMetric&gt;&gt;;</div>
 <div class="line"><a id="l00023" name="l00023"></a><span class="lineno">   23</span> </div>
 <div class="line"><a id="l00024" name="l00024"></a><span class="lineno">   24</span>  <span class="keywordtype">void</span> Timestamp(uint64_t ms_since_1970) {</div>
 <div class="line"><a id="l00025" name="l00025"></a><span class="lineno">   25</span>    timestamp_ = ms_since_1970;</div>
@@ -137,9 +137,9 @@ $(document).ready(function() { init_codefold(0); });
 <div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span>  [[nodiscard]] <span class="keyword">const</span> BodyList&amp; Body()<span class="keyword"> const </span>{</div>
 <div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span>    <span class="keywordflow">return</span> body_;</div>
 <div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span>  }</div>
-<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span>  <span class="keywordtype">void</span> AddMetric(std::unique_ptr&lt;IValue&gt;&amp; metric);</div>
-<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span>  [[nodiscard]] <a class="code hl_class" href="classpub__sub_1_1_i_metric.html">IValue</a>* GetMetric(uint64_t alias);</div>
-<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span>  [[nodiscard]] <a class="code hl_class" href="classpub__sub_1_1_i_metric.html">IValue</a>* GetMetric(<span class="keyword">const</span> std::string&amp; name);</div>
+<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span>  <span class="keywordtype">void</span> AddMetric(std::unique_ptr&lt;IMetric&gt;&amp; metric);</div>
+<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span>  [[nodiscard]] <a class="code hl_class" href="classpub__sub_1_1_i_metric.html">IMetric</a>* GetMetric(uint64_t alias);</div>
+<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span>  [[nodiscard]] <a class="code hl_class" href="classpub__sub_1_1_i_metric.html">IMetric</a>* GetMetric(<span class="keyword">const</span> std::string&amp; name);</div>
 <div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span>  [[nodiscard]] <span class="keyword">const</span> MetricList&amp; Metrics() <span class="keyword">const</span>;</div>
 <div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span>  <span class="keywordtype">void</span> DeleteMetrics(<span class="keyword">const</span> std::string&amp; name);</div>
 <div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span> </div>
@@ -159,7 +159,7 @@ $(document).ready(function() { init_codefold(0); });
 </div>
 <div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span> </div>
 <div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span>} <span class="comment">// pub_sub</span></div>
-<div class="ttc" id="aclasspub__sub_1_1_i_metric_html"><div class="ttname"><a href="classpub__sub_1_1_i_metric.html">pub_sub::IValue</a></div><div class="ttdef"><b>Definition</b> imetric.h:68</div></div>
+<div class="ttc" id="aclasspub__sub_1_1_i_metric_html"><div class="ttname"><a href="classpub__sub_1_1_i_metric.html">pub_sub::IMetric</a></div><div class="ttdef"><b>Definition</b> imetric.h:68</div></div>
 <div class="ttc" id="aclasspub__sub_1_1_i_payload_html"><div class="ttname"><a href="classpub__sub_1_1_i_payload.html">pub_sub::IPayload</a></div><div class="ttdef"><b>Definition</b> ipayload.h:19</div></div>
 </div><!-- fragment --></div><!-- contents -->
 <!-- start footer part -->

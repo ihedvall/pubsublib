@@ -5,20 +5,32 @@
 
 #include <gtest/gtest.h>
 #include <util/timestamp.h>
-#include "sparkplug_b_c_sharp.pb.h"
+#include "sparkplug_b.pb.h"
 #include "pubsub/ipayload.h"
 #include "payloadhelper.h"
+#include "sparkplughelper.h"
 using namespace util::time;
 using namespace org::eclipse::tahu::protobuf;
 
 namespace pub_sub::test {
+
+TEST(IPayload, TestAny) {
+  {
+    constexpr int8_t test_value = -32;
+    const uint32_t pb_input = static_cast<uint8_t>(test_value);
+    const auto output = static_cast<int8_t>(pb_input);
+    EXPECT_EQ(output, test_value);
+    std::any any_value = output;
+    EXPECT_EQ(std::any_cast<int8_t>(any_value), test_value);
+  }
+}
 
 TEST(Sparkplug, RawPayload) { // NOLINT
   DataType type = DataType::DateTime;
 
   Payload node_birth;
 
-  node_birth.set_timestamp(TimeStampToNs() / 1'000'000);
+  node_birth.set_timestamp(SparkplugHelper::NowMs());
   node_birth.set_seq(0);
 
   auto* reboot = node_birth.add_metrics();
@@ -48,10 +60,11 @@ TEST(Sparkplug, RawPayload) { // NOLINT
 
 }
 
-TEST(Sparkplug, MetricValue) {
-  IValue metric;
+TEST(IPayload, MetricValue) {
+  IMetric metric;
   for (int index = INT8_MIN; index <= INT8_MAX; ++index ) {
     const auto orig = static_cast<int8_t>(index);
+    metric.Type(MetricType::Int8);
     metric.Value(orig);
     const auto dest = metric.Value<int8_t>();
     // std::cout << metric.Value<std::string>() << "/" << static_cast<int>(dest) << std::endl;
@@ -60,6 +73,7 @@ TEST(Sparkplug, MetricValue) {
 
   for (int index = INT8_MIN; index <= INT8_MAX; ++index ) {
     const auto orig = static_cast<int64_t>(index);
+    metric.Type(MetricType::Int64);
     metric.Value(orig);
     const auto dest = metric.Value<int64_t>();
     EXPECT_EQ(orig, dest);
@@ -67,6 +81,7 @@ TEST(Sparkplug, MetricValue) {
 
   for (int index = 0; index <= UINT8_MAX; ++index ) {
     const auto orig = static_cast<uint8_t>(index);
+    metric.Type(MetricType::UInt8);
     metric.Value(orig);
     const auto dest = metric.Value<uint8_t>();
     // std::cout << metric.Value<std::string>() << "/" << static_cast<uint64_t>(dest) << std::endl;
@@ -75,37 +90,44 @@ TEST(Sparkplug, MetricValue) {
 
   for (int index = 0; index <= UINT8_MAX; ++index ) {
     const auto orig = static_cast<uint64_t>(index);
+    metric.Type(MetricType::UInt64);
     metric.Value(orig);
     const auto dest = metric.Value<uint64_t>();
     EXPECT_EQ(orig, dest);
   }
   {
     const auto orig = UINT64_MAX;
+    metric.Type(MetricType::UInt64);
     metric.Value(orig);
     const auto dest = metric.Value<uint64_t>();
     EXPECT_EQ(orig, dest);
     EXPECT_EQ(dest, UINT64_MAX);
   }
-
-  for (float index = -11.23F; index < 11.23F; index += 0.1F ) { // NOLINT
-    metric.Value(index);
-    const auto dest = metric.Value<float>();
-    EXPECT_EQ(index, dest);
-  }
-
-  for (double index = -11.23; index < 11.23; index += 0.1 ) { // NOLINT
-    metric.Value(index);
-    const auto dest = metric.Value<double>();
-    EXPECT_EQ(index, dest);
-  }
-
   {
+    for (float index = -11.23F; index < 11.23F; index += 0.1F) { // NOLINT
+      metric.Type(MetricType::Float);
+      metric.Value<float>(index);
+      const auto dest = metric.Value<float>();
+      EXPECT_FLOAT_EQ(index, dest);
+    }
+  }
+  {
+    for (double index = -11.23; index < 11.23; index += 0.1) { // NOLINT
+      metric.Type(MetricType::Double);
+      metric.Value(index);
+      const auto dest = metric.Value<double>();
+      EXPECT_DOUBLE_EQ(index, dest);
+    }
+  }
+  {
+    metric.Type(MetricType::Boolean);
     metric.Value(true);
     const auto dest = metric.Value<bool>();
     EXPECT_TRUE(dest);
   }
 
   {
+    metric.Type(MetricType::Boolean);
     metric.Value(false);
     const auto dest = metric.Value<bool>();
     EXPECT_FALSE(dest);
@@ -113,6 +135,7 @@ TEST(Sparkplug, MetricValue) {
 
   {
     const std::string orig = "Hello Test";
+    metric.Type(MetricType::String);
     metric.Value(orig);
     const auto dest = metric.Value<std::string>();
     EXPECT_EQ(dest, orig);
@@ -120,41 +143,88 @@ TEST(Sparkplug, MetricValue) {
 
   {
     const std::string orig = "Hello Test";
+    metric.Type(MetricType::String);
     metric.Value(orig.c_str());
     const auto dest = metric.Value<std::string>();
     EXPECT_EQ(dest, orig);
   }
 }
 
-TEST(Sparkplug, TestMetric) {
-  IValue orig;
-  const auto ms_now = util::time::TimeStampToNs() / 1'000'000;
-  const int8_t value = -11;
+TEST(IPayload, TestMetric) {
+  IPayload payload;
+
+  IMetric orig;
+  const auto ms_now = SparkplugHelper::NowMs();
+  constexpr int8_t value = -11;
 
   orig.Name("Metric 1");
   orig.Alias(11);
   orig.Timestamp(ms_now);
-  orig.Type(ValueType::Int8);
+  orig.Type(MetricType::Int8);
   orig.Value(value);
+  orig.IsHistorical(true);
+  orig.IsTransient(true);
+  orig.IsNull(true);
 
-  Property prop1 = {"Scan Rate", ValueType::String, false, "Hz"};
+  MetricProperty prop1 = {"Scan Rate", MetricType::String, false, "Hz"};
   orig.AddProperty(prop1);
 
-  Property prop2 = {"Read-Only", ValueType::Boolean, false,"true"};
+  MetricProperty prop2 = {"Read-Only", MetricType::Boolean, false, "true"};
   orig.AddProperty(prop2);
 
-  Property prop3 = {"Description", ValueType::String, false, "Descriptive text"};
+  MetricProperty prop3 = {"Description", MetricType::String, false, "Descriptive text"};
   orig.AddProperty(prop3);
+
+  EXPECT_STREQ(orig.Name().c_str(), "Metric 1");
+  EXPECT_EQ(orig.Alias(), 11);
+  EXPECT_EQ(orig.Timestamp(), ms_now);
+  EXPECT_EQ(orig.Type(), MetricType::Int8);
+  EXPECT_EQ(orig.Value<int8_t>(), value);
+  EXPECT_EQ(orig.IsHistorical(), true);
+  EXPECT_EQ(orig.IsTransient(), true);
+  EXPECT_EQ(orig.IsNull(), true);
+  EXPECT_EQ(orig.Properties().size(), 3);
 
   std::vector<uint8_t> body;
   orig.GetBody(body);
 
   Payload_Metric temp;
-  temp.ParseFromArray(body.data(), static_cast<int>(body.size()));
+  EXPECT_TRUE(temp.ParseFromArray(body.data(), static_cast<int>(body.size())));
   std::cout << temp.DebugString() << std::endl;
 
-  IValue dest;
-  PayloadHelper::ProtobufToMetric(temp, dest);
+  IMetric dest;
+  PayloadHelper helper(payload);
+  helper.WriteAllMetrics(true);
+  helper.ParseMetric(temp, dest);
+
+  EXPECT_EQ(orig.Name(), dest.Name());
+  EXPECT_EQ(orig.Alias(), dest.Alias());
+  EXPECT_EQ(orig.Timestamp(), dest.Timestamp());
+  EXPECT_EQ(orig.Type(), dest.Type());
+  EXPECT_EQ(orig.IsHistorical(), dest.IsHistorical());
+  EXPECT_EQ(orig.IsTransient(), dest.IsTransient());
+  EXPECT_EQ(orig.IsNull(), dest.IsNull());
+  ASSERT_EQ(orig.Properties().size(), dest.Properties().size());
+  auto orig_itr = orig.Properties().cbegin();
+  auto dest_itr = dest.Properties().cbegin();
+  for (size_t index = 0; index < orig.Properties().size(); ++index) {
+    const auto& orig_key = orig_itr->first;
+    const auto& dest_key = dest_itr->first;
+    EXPECT_EQ(orig_key, dest_key);
+
+    const auto& orig_prop = orig_itr->second;
+    const auto& dest_prop = dest_itr->second;
+    EXPECT_EQ(orig_prop.key, dest_prop.key);
+    EXPECT_EQ(orig_prop.type, dest_prop.type);
+    EXPECT_EQ(orig_prop.is_null, dest_prop.is_null);
+    if (orig_prop.type == MetricType::String) {
+      EXPECT_EQ(orig_prop.value, dest_prop.value);
+    } else if (orig_prop.type == MetricType::Boolean) {
+      EXPECT_EQ(orig_prop.Value<bool>(), dest_prop.Value<bool>());
+    }
+    ++orig_itr;
+    ++dest_itr;
+  }
 
   std::cout << dest.DebugString() << std::endl;
 }

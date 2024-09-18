@@ -4,16 +4,43 @@
  */
 
 #pragma once
-#include "sparkplug_b_c_sharp.pb.h"
-#include "pubsub/ivalue.h"
+#include "sparkplug_b.pb.h"
+#include "pubsub/imetric.h"
 #include "pubsub/ipayload.h"
+
 namespace pub_sub {
 
-class PayloadHelper {
+class PayloadHelper final {
  public:
-  static void MetricToProtobuf(const IValue& source, org::eclipse::tahu::protobuf::Payload_Metric& dest);
-  static void ProtobufToMetric(const org::eclipse::tahu::protobuf::Payload_Metric& source, IValue& dest);
-  static void PayloadToProtobuf(const IPayload& source, org::eclipse::tahu::protobuf::Payload& dest);
+  PayloadHelper() = delete;
+  explicit PayloadHelper(IPayload& source);
+
+  void WriteAllMetrics(bool write_all) { write_all_metrics_ = write_all; }
+  [[nodiscard]] bool WriteAllMetrics() const { return write_all_metrics_; }
+
+  void WriteProtobuf();
+
+  void WriteMetric(const IMetric& metric,
+                          org::eclipse::tahu::protobuf::Payload_Metric& pb_metric);
+  void WritePropertySet(const MetricPropertyList& property_list,
+                   org::eclipse::tahu::protobuf::Payload_PropertySet& pb_property_set);
+
+  void ParseProtobuf();
+
+  void ParseMetric(const org::eclipse::tahu::protobuf::Payload_Metric& pb_metric, IMetric& metric);
+
+  static void ParseMetaData(const org::eclipse::tahu::protobuf::Payload_MetaData& pb_meta_data,
+                            MetricMetaData& meta_data);
+
+  static void ParsePropertyValue(const org::eclipse::tahu::protobuf::Payload_PropertyValue& pb_property_value,
+                            MetricProperty& property);
+
+  static void ParsePropertySet(const org::eclipse::tahu::protobuf::Payload_PropertySet& pb_property_set,
+                              MetricPropertyList& property_list);
+ private:
+   IPayload& source_;
+   bool write_all_metrics_ = false;
+
 };
 
 } // pub_sub

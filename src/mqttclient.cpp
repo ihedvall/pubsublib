@@ -50,7 +50,7 @@ ITopic *MqttClient::CreateTopic() {
 }
 
 
-ITopic *MqttClient::AddValue(const std::shared_ptr<IValue>& value) {
+ITopic *MqttClient::AddMetric(const std::shared_ptr<IMetric>& value) {
   auto* topic = CreateTopic(); // Note that this call adds the topic to its list.
   if ( topic == nullptr) {
     return nullptr;
@@ -64,7 +64,7 @@ ITopic *MqttClient::AddValue(const std::shared_ptr<IValue>& value) {
   } else {
     topic->Payload(payload);
   }
-  value->SetPublish([this] (IValue& value) { OnPublish(value); });
+  value->SetPublish([this] (IMetric& value) { OnPublish(value); });
   topic->Value(value);
 
 
@@ -388,7 +388,7 @@ void MqttClient::OnDisconnectFailure(void* context, MQTTAsync_failureData* respo
   }
 }
 
-void MqttClient::OnPublish(IValue &value) {
+void MqttClient::OnPublish(IMetric &value) {
   auto* topic = GetTopic(value.Name());
   if (topic == nullptr) {
     return;

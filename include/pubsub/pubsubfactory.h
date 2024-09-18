@@ -19,17 +19,19 @@ enum class PubSubType : int {
 
 class PubSubFactory {
  public:
-/** \brief Creates a publisher client interface.
+/** \brief Creates a Pub/Sub client interface.
  *
- *  Creates a pre-defined publisher source. Currently on MQTT is available.
+ *  Creates a pub/sub client. Currently, only MQTT/Sparkplug B clients are
+ *  supported.
  *
  * @param type Type of publisher.
  * @return Smart pointer to a Pub/Sub client source.
  */
   static std::unique_ptr<IPubSubClient> CreatePubSubClient(PubSubType type);
 
-  static std::shared_ptr<IValue> CreateValue(const std::string_view& name);
-  static std::shared_ptr<IValue> CreateValue(const std::string& name);
+
+  static std::shared_ptr<IMetric> CreateValue(const std::string_view& name);
+  static std::shared_ptr<IMetric> CreateValue(const std::string& name);
 };
 
 } // pub_sub

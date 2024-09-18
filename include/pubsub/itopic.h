@@ -11,7 +11,7 @@
 #include <mutex>
 #include <memory>
 #include "pubsub/ipayload.h"
-#include "pubsub/ivalue.h"
+#include "pubsub/imetric.h"
 
 namespace pub_sub {
 
@@ -70,6 +70,12 @@ class ITopic {
   [[nodiscard]] const std::string& ContentType() const {
     return content_type_;
   }
+  [[nodiscard]] bool IsJson() const {
+    return content_type_.find("json") != std::string::npos;
+  }
+  [[nodiscard]] bool IsProtobuf() const {
+    return content_type_.find("protobuf") != std::string::npos;
+  }
 
   void Publish(bool publish) {
     publish_ = publish;
@@ -108,22 +114,25 @@ class ITopic {
 
   [[nodiscard]] bool IsWildcard() const;
 
-  void Value(const std::shared_ptr<IValue>& value) {
+  void Value(const std::shared_ptr<IMetric>& value) {
     value_ = value;
   }
-  [[nodiscard]] std::shared_ptr<IValue>& Value() {
+  [[nodiscard]] std::shared_ptr<IMetric>& Value() {
     return value_;
   }
 
-  IValue* CreateMetric(const std::string& name);
-  const IValue* GetMetric(const std::string& name) const;
-  IValue* GetMetric(const std::string& name);
+  std::shared_ptr<IMetric> CreateMetric(const std::string& name);
+  std::shared_ptr<IMetric> GetMetric(const std::string& name) const;
+
+  virtual void ParsePayloadData() = 0;
+
+  void SetAllMetricsInvalid();
 
  protected:
   mutable std::recursive_mutex topic_mutex_;
   bool       updated_ = false;
   uint64_t   update_counter_ = 0;
-  std::shared_ptr<IValue> value_; ///< Reference to a user value object.
+  std::shared_ptr<IMetric> value_; ///< Reference to a user value object.
 
   virtual void UpdatePayload(const std::vector<uint8_t>& payload);
 
@@ -138,7 +147,6 @@ class ITopic {
   std::string device_id_;
 
   IPayload payload_; ///< MQTT topic data.
-  uint64_t timestamp_ = 0; ///< Nanoseconds since 1970
 
   bool publish_ = false;
   QualityOfService qos_ = QualityOfService::Qos0;

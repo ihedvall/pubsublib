@@ -27,22 +27,17 @@ include(script/mqtt.cmake)
 include(script/protobuf.cmake)
 # include(script/tahu.cmake)
 
-
-
-
 add_library(pubsub STATIC
         src/ipubsubclient.cpp include/pubsub/ipubsubclient.h
         src/itopic.cpp include/pubsub/itopic.h
         src/mqttclient.cpp src/mqttclient.h
         src/mqtttopic.cpp src/mqtttopic.h
-        proto/sparkplug_b_c_sharp.proto
-        src/ivalue.cpp include/pubsub/ivalue.h
+        proto/sparkplug_b.proto
+        src/imetric.cpp include/pubsub/imetric.h
         src/ipayload.cpp include/pubsub/ipayload.h
         src/payloadhelper.cpp src/payloadhelper.h
         src/pubsubfactory.cpp include/pubsub/pubsubfactory.h
         src/sparkplugnode.cpp src/sparkplugnode.h
-        src/inode.cpp
-        include/pubsub/inode.h
         src/detectbroker.cpp
         src/detectbroker.h
         src/sparkplughost.cpp
@@ -50,14 +45,16 @@ add_library(pubsub STATIC
         src/sparkplughelper.cpp
         src/sparkplughelper.h
         src/sparkplugtopic.cpp
-        src/sparkplugtopic.h)
+        src/sparkplugtopic.h
+        src/sparkplugdevice.cpp
+        src/sparkplugdevice.h)
 
 protobuf_generate(
         TARGET pubsub
         OUT_VAR PROTO_GENERATED_FILES
         LANGUAGE cpp
         IMPORT_DIRS ${CMAKE_CURRENT_DIR}/proto
-        #PROTOS proto/sparkplug_b_c_sharp.proto
+        #PROTOS proto/sparkplug_b.proto
         PROTOC_OUT_DIR ${CMAKE_CURRENT_BINARY_DIR})
 
 cmake_print_variables(CMAKE_CURRENT_BINARY_DIR PROTO_GENERATED_FILES)

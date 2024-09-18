@@ -39,17 +39,28 @@ enum class ProtocolVersion : int {
 class IPubSubClient {
  public:
   using TopicList = std::vector<std::unique_ptr<ITopic>>;
-  using ValueList = std::vector<std::shared_ptr<IValue>>;
+  using ValueList = std::vector<std::shared_ptr<IMetric>>;
 
-  IPubSubClient() = default;
+  IPubSubClient();
   virtual ~IPubSubClient() = default;
 
+  /** \brief Sets the Node Name/ID.
+   *
+   * Sets Node name or Node ID. Note that the node belongs to a group.
+   * The group ID and the node ID must be unique.
+   * @param name Node ID or Node Name.
+   */
   void Name(const std::string& name) {
     name_ = name;
   }
+
   [[nodiscard]] const std::string& Name() const {
     return name_;
   }
+
+  void GroupId(const std::string& group) { group_ = group; }
+  [[nodiscard]] const std::string& GroupId() const { return group_; }
+
 
   void Transport(TransportLayer transport) {
     transport_ = transport;
@@ -80,22 +91,38 @@ class IPubSubClient {
     return version_;
   }
 
+  void HardwareMake(const std::string& hardware_make) { hardware_make_ = hardware_make;}
+  [[nodiscard]] const std::string& HardwareMake() const {return hardware_make_; }
+
+  void HardwareModel(const std::string& hardware_model) { hardware_model_ = hardware_model;}
+  [[nodiscard]] const std::string& HardwareModel() const {return hardware_model_; }
+
+  void OperatingSystem(const std::string& operating_system) { operating_system_ = operating_system;}
+  [[nodiscard]] const std::string& OperatingSystem() const {return operating_system_; }
+
+  void OsVersion(const std::string& os_version) { os_version_ = os_version;}
+  [[nodiscard]] const std::string& OsVersion() const {return os_version_; }
+
+  virtual void ScanRate(int64_t scan_rate); ///< Scan rate in ms.
+  [[nodiscard]] virtual int64_t ScanRate() const;
+
   void InService(bool in_service) { in_service_ = in_service; }
   [[nodiscard]] bool InService() const { return in_service_;}
 
   virtual bool IsOnline() const = 0;
   virtual bool IsOffline() const = 0;
 
-  virtual ITopic* AddValue(const std::shared_ptr<IValue>& value) = 0;
+  virtual ITopic* AddMetric(const std::shared_ptr<IMetric>& value) = 0;
   virtual ITopic* CreateTopic() = 0;
+
   ITopic* GetTopic(const std::string& topic_name);
   ITopic* GetITopic(const std::string& topic_name);
-  ITopic* GetTopicByMessageType(const std::string& message_type, bool publisher = true);
+  ITopic* GetTopicByMessageType(const std::string &message_type);
   void DeleteTopic(const std::string& topic_name);
   void ClearTopicList();
 
-  virtual bool Start() = 0; ///< Connects to the MQTT server.
-  virtual bool Stop() = 0; ///< Disconnect from the MQTT server.
+  virtual bool Start() = 0;
+  virtual bool Stop() = 0;
   [[nodiscard]] virtual bool IsConnected() const = 0;
   [[nodiscard]] bool IsFaulty() const;
 
@@ -106,6 +133,17 @@ class IPubSubClient {
     return default_qos_;
   }
   int GetUniqueToken();
+
+  void AddSubscriptionByTopic(const std::string& topic_name);
+  void DeleteSubscriptionByTopic(const std::string& topic_name);
+
+  const std::vector<std::string>& Subscriptions() const;
+
+  [[nodiscard]] virtual IPubSubClient* CreateDevice(const std::string& device_name);
+  virtual void DeleteDevice(const std::string& device_name);
+
+  [[nodiscard]] virtual IPubSubClient* GetDevice(const std::string& device_name);
+  [[nodiscard]] virtual const IPubSubClient* GetDevice(const std::string& device_name) const;
  protected:
   void SetFaulty(bool faulty, const std::string& error_text);
 
@@ -114,10 +152,22 @@ class IPubSubClient {
   std::string broker_ = "127.0.0.1"; ///< Address to the MQTT server (broker).
   uint16_t port_ = 1883; ///< The MQTT broker server port.
 
-  std::string name_; ///< Name of the client
+  std::string name_;  ///< Name of the client.
+  std::string group_; ///< Group ID (Sparkplug B).
+
+  std::string hardware_make_; ///< Defines the hardware maker.
+  std::string hardware_model_; ///< Defines the hardware model.
+  std::string operating_system_; ///< Defines the operating system.
+  std::string os_version_; ///< Defines the operating system version.
+
+  std::atomic<bool> reboot_ = false;
+  std::atomic<bool> rebirth_ = false;
+  std::atomic<bool> next_server_ = false;
+  std::atomic<int64_t> scan_rate_ = 0; ///< Scan rate in ms.
 
   mutable std::recursive_mutex topic_mutex; ///< Thread protection of the topic list
   TopicList topic_list_; ///< List of topics.
+  std::vector<std::string> subscription_list_;
 private:
   bool faulty_ = false;
   std::string last_error_;

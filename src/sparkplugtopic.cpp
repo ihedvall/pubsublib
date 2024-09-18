@@ -7,7 +7,7 @@
 #include "MQTTAsync.h"
 #include "util/logstream.h"
 #include "sparkplugnode.h"
-
+#include <array>
 namespace {
   constexpr std::string_view kNamespace = "spBv1.0";
 }
@@ -38,19 +38,18 @@ void SparkplugTopic::DoPublish() {
 
 
   MQTTAsync_responseOptions options = MQTTAsync_responseOptions_initializer;
-  options.onSuccess = OnSend;
-  options.onFailure = OnSendFailure;
+  options.onSuccess = nullptr; // OnSend;
+  options.onFailure = OnSendFailure; // Note it just logging
   options.context = this;
-  const auto token = parent_.GetUniqueToken();
-  parent_.NextToken(token);
-  options.token = token;
+  // options.token = parent_.GetUniqueToken();
+
 
   auto* listen = parent_.Listen();
   if (listen != nullptr && listen->IsActive() && listen->LogLevel() == 3) {
     const auto json = GetPayload().MakeJsonString();
     const auto& topic_name  = SparkplugTopic::Topic();
     listen->ListenText("Publish: %s: %s, %d",
-                       Topic().c_str(), json.c_str(), token );
+                       Topic().c_str(), json.c_str(), options.token );
   }
   const auto send = MQTTAsync_sendMessage(parent_.Handle(), Topic().c_str(), &message, &options );
   if (send != MQTTASYNC_SUCCESS) {
@@ -62,7 +61,7 @@ void SparkplugTopic::DoPublish() {
 
 void SparkplugTopic::DoSubscribe() {
   MQTTAsync_responseOptions options = MQTTAsync_responseOptions_initializer;
-  options.onSuccess = OnSubscribe;
+  options.onSuccess = nullptr; // No check if it sent
   options.onFailure = OnSubscribeFailure;
   options.context = this;
 
@@ -96,7 +95,8 @@ void SparkplugTopic::OnSendFailure(void *context, MQTTAsync_failureData *respons
 
 void SparkplugTopic::OnSend(void *context, MQTTAsync_successData *response) {
   auto *topic = reinterpret_cast<SparkplugTopic *>(context);
-  if (topic != nullptr) {
+  if (topic != nullptr && response != nullptr) {
+    topic->SendComplete(*response);
   }
 }
 
@@ -118,5 +118,50 @@ void SparkplugTopic::OnSubscribe(void *context, MQTTAsync_successData *response)
   }
 }
 
+void SparkplugTopic::ParsePayloadData() {
+  auto* listen = parent_.Listen();
+
+  // First check that it is a Sparkplug B message by checking the namespace.
+  if (Namespace() != kNamespace && !IsValidMessageType()) {
+    if (listen != nullptr && listen->IsActive()) {
+      listen->ListenText("Ignoring Topic: %s", Topic().c_str());
+    }
+    return;
+  }
+  const bool create_metrics = IsBirthMessageType();
+  auto& payload = GetPayload();
+  if (MessageType() == "STATE") {
+    payload.ParseSparkplugJson(create_metrics);
+  } else {
+    payload.ParseSparkplugProtobuf(create_metrics);
+  }
+}
+
+bool SparkplugTopic::IsValidMessageType() const {
+  constexpr std::array<std::string_view, 8> valid_message_types = {
+      "NBIRTH", "NDEATH", "DBIRTH", "DDEATH", "NDATA", "NCMD", "DCMD", "STATE"
+  };
+  return std::any_of(valid_message_types.cbegin(), valid_message_types.cend(),
+                     [&] (const auto& type) -> bool {
+    return MessageType() == type;
+  });
+}
+
+bool SparkplugTopic::IsBirthMessageType() const {
+  constexpr std::array<std::string_view, 3> birth_message_types = {
+      "NBIRTH", "DBIRTH", "STATE"
+  };
+  return std::any_of(birth_message_types.cbegin(), birth_message_types.cend(),
+                     [&] (const auto& type) -> bool {
+                       return MessageType() == type;
+                     });
+}
+
+void SparkplugTopic::SendComplete(const MQTTAsync_successData &response) {
+  auto* listen = parent_.Listen();
+  if (listen != nullptr && listen->IsActive()) {
+    listen->ListenText("Send completed. Token: %d", response.token);
+  }
+}
 
 } // pub_sub

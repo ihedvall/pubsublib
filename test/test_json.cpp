@@ -41,3 +41,27 @@ TEST(TestJson, BasicFunctions) {
   value jv1 = parse( "[1, 2, 3]" );
   std::cout << "VALUE1" << std::endl << jv1 << std::endl;
 }
+TEST(TestJson, ParseJson) {
+  // First generate
+  object obj;
+  obj[ "float_value" ] = 3.141;
+  obj[ "bool_value" ] = true;
+  obj[ "text_value" ] = "Boost";
+  obj[ "null_value" ] = nullptr;
+  obj[ "int_value" ] = -42;
+  obj[ "uint_value" ] = static_cast<uint64_t>(40);
+
+  auto json_text = serialize(obj);
+
+
+  const auto val = parse(json_text);
+  const auto& dest = val.get_object();
+  std::cout << dest.size() << std::endl;
+  for (auto& [key, value] : dest) {
+    std::cout << key << ": " << value <<  " (" << value.kind() << ")"<< std::endl;
+    std::cout << key << ": " << "IsUint64: " << value.is_uint64() <<  " (" << value.kind() << ")"<< std::endl;
+  }
+
+
+
+}

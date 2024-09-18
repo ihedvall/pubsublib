@@ -13,9 +13,6 @@ namespace pub_sub {
 
 void ITopic::Topic(const std::string &topic) {
   topic_ = topic;
-  if (!name_space_.empty()) {
-    return;
-  }
 
   size_t level = 0;
   std::ostringstream temp;
@@ -29,7 +26,7 @@ void ITopic::Topic(const std::string &topic) {
       temp << in_char;
     }
   }
-  if (level > 0 && temp.str().empty()) {
+  if (level > 0 && !temp.str().empty()) {
     AssignLevelName(level,temp.str());
   }
 
@@ -125,7 +122,6 @@ bool ITopic::Payload() const {
 }
 
 void ITopic::UpdatePayload(const std::vector<uint8_t> &payload) {
-  timestamp_ = util::time::TimeStampToNs();
   payload_.Body(payload);
   updated_ = true;
   ++update_counter_;
@@ -180,18 +176,22 @@ void ITopic::AssignLevelName(size_t level, const std::string &name) {
   }
 }
 
-IValue *ITopic::CreateMetric(const std::string &name) {
+std::shared_ptr<IMetric> ITopic::CreateMetric(const std::string &name) {
   return payload_.CreateMetric(name);
 }
 
-const IValue *ITopic::GetMetric(const std::string &name) const {
+std::shared_ptr<IMetric> ITopic::GetMetric(const std::string &name) const {
   return payload_.GetMetric(name);
 }
 
-IValue *ITopic::GetMetric(const std::string &name) {
-  return payload_.GetMetric(name);
+void ITopic::SetAllMetricsInvalid() {
+  auto& payload = GetPayload();
+  std::scoped_lock lock(topic_mutex_);
+  for ( const auto& [name, metric] : payload.Metrics() ) {
+    if (metric) {
+      metric->IsValid(false);
+    }
+  }
 }
-
-
 
 } // end namespace util::mqtt

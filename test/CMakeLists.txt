@@ -10,8 +10,9 @@ add_executable(test_pubsub
        test_mqtt.cpp test_mqtt.h
        test_payload.cpp
         test_json.cpp
-        testsparkplug.cpp
-        testsparkplug.h
+        test_sparkplug.cpp
+        test_sparkplug.h
+        test_topic.cpp
 )
 
 target_include_directories(test_pubsub PRIVATE ../include)
@@ -26,7 +27,7 @@ target_link_libraries(test_pubsub PRIVATE util)
 target_link_libraries(test_pubsub PRIVATE pubsub)
 target_link_libraries(test_pubsub PRIVATE ${Boost_LIBRARIES})
 target_link_libraries(test_pubsub PRIVATE EXPAT::EXPAT)
-#target_link_libraries(test_pubsub PRIVATE ${ZLIB_LIBRARIES})
+target_link_libraries(test_pubsub PRIVATE lfreist-hwinfo::hwinfo)
 target_link_libraries(test_pubsub PRIVATE GTest::gtest GTest::gtest_main)
 #target_link_libraries(test_pubsub PRIVATE ${OPENSSL_LIBRARIES})
 target_link_libraries(test_pubsub PRIVATE eclipse-paho-mqtt-c::paho-mqtt3as-static)
