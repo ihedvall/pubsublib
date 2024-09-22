@@ -33,8 +33,8 @@ add_library(pubsub STATIC
         src/mqttclient.cpp src/mqttclient.h
         src/mqtttopic.cpp src/mqtttopic.h
         proto/sparkplug_b.proto
-        src/imetric.cpp include/pubsub/imetric.h
-        src/ipayload.cpp include/pubsub/ipayload.h
+        src/metric.cpp include/pubsub/metric.h
+        src/payload.cpp include/pubsub/payload.h
         src/payloadhelper.cpp src/payloadhelper.h
         src/pubsubfactory.cpp include/pubsub/pubsubfactory.h
         src/sparkplugnode.cpp src/sparkplugnode.h
@@ -47,7 +47,12 @@ add_library(pubsub STATIC
         src/sparkplugtopic.cpp
         src/sparkplugtopic.h
         src/sparkplugdevice.cpp
-        src/sparkplugdevice.h)
+        src/sparkplugdevice.h
+        src/metricproperty.cpp
+        include/pubsub/metricproperty.h
+        include/pubsub/metrictype.h
+        src/metricmetadata.cpp
+        include/pubsub/metricmetadata.h)
 
 protobuf_generate(
         TARGET pubsub

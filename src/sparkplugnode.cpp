@@ -8,10 +8,14 @@
 #include <chrono>
 #include "util/utilfactory.h"
 #include "util/logstream.h"
+#include "util/stringutil.h"
 #include "sparkplugtopic.h"
 #include "sparkplugdevice.h"
+#include "pubsub/pubsubfactory.h"
+#include "sparkplughost.h"
 
 using namespace util::log;
+using namespace util::string;
 using namespace std::chrono_literals;
 
 namespace {
@@ -28,11 +32,40 @@ constexpr std::string_view kHardwareModel = "Properties/Hardware Model";
 constexpr std::string_view kOs = "Properties/OS";
 constexpr std::string_view kOsVersion = "Properties/OS Version";
 
+constexpr std::string_view kState = "STATE";
+
+constexpr std::string_view kNodeBirth = "NBIRTH";
+constexpr std::string_view kNodeDeath = "NDEATH";
+constexpr std::string_view kNodeCommand = "NCMD";
+constexpr std::string_view kNodeData = "NDATA";
+
+constexpr std::string_view kDeviceBirth = "DBIRTH";
+constexpr std::string_view kDeviceDeath = "DDEATH";
+constexpr std::string_view kDeviceCommand = "DCMD";
+constexpr std::string_view kDeviceData = "DDATA";
+
+bool IsSparkplugHost(const pub_sub::IPubSubClient* client) {
+  const auto* host = dynamic_cast<const pub_sub::SparkplugHost*>(client);
+  return host != nullptr;
+}
+
+bool IsSparkplugNode(const pub_sub::IPubSubClient* client) {
+  const auto* node = dynamic_cast<const pub_sub::SparkplugNode*>(client);
+  return node != nullptr ? !node->GroupId().empty() && !node->Name().empty() : false;
+}
+
+bool IsSparkplugDevice(const pub_sub::IPubSubClient* client) {
+  const auto* device = dynamic_cast<const pub_sub::SparkplugDevice*>(client);
+  return device != nullptr;
+}
+
 }
 namespace pub_sub {
 
 SparkplugNode::SparkplugNode()
 : listen_(std::move(util::UtilFactory::CreateListen("ListenProxy", "LISMQTT"))) {
+  CreateNodeBirthTopic();
+  CreateNodeDeathTopic();
 }
 
 SparkplugNode::~SparkplugNode() {
@@ -101,7 +134,7 @@ void SparkplugNode::OnSubscribeFailure(void *context, MQTTAsync_failureData *res
   }
 }
 
-void SparkplugNode::OnSubscribe(void *, MQTTAsync_successData *response) {
+void SparkplugNode::OnSubscribe(void *, MQTTAsync_successData *) {
 }
 
 void SparkplugNode::OnDisconnect(void* context, MQTTAsync_successData* response) {
@@ -122,18 +155,31 @@ void SparkplugNode::Connect(const MQTTAsync_successData &response) {
   const auto& info = response.alt.connect;
   server_uri_ = info.serverURI != nullptr ? info.serverURI : std::string();
   server_version_ = info.MQTTVersion;
+  switch (server_version_) {
+    case MQTTVERSION_3_1_1:
+      MqttVersion("3.1.1");
+      break;
+
+    case MQTTVERSION_5:
+      MqttVersion("5.0");
+      break;
+    case MQTTVERSION_3_1:
+    case MQTTVERSION_DEFAULT:
+    default:
+      MqttVersion("3.1");
+      break;
+  }
+
   server_session_ = info.sessionPresent;
 
   if (listen_ && listen_->IsActive()) {
     listen_->ListenText("Connected. URI: %s, Version: %d, Session: %d",
                         server_uri_.c_str(), server_version_, server_session_);
   }
-  if (IsFaulty()) {
-    LOG_INFO() << "Connected. Server: " << server_uri_;
-  }
-  SetFaulty(false,{});
+  LOG_INFO() << "Connected. Server: " << server_uri_;
 
-  ResetDelivered();
+
+  SetDelivered();
 
   node_event_.notify_one();
 }
@@ -148,24 +194,21 @@ void SparkplugNode::ConnectFailure(const MQTTAsync_failureData &response) {
   if (response.message != nullptr) {
     err << " Message: " << response.message;
   }
-  if (!IsFaulty()) {
-    LOG_ERROR() << err.str();
-  }
-  SetFaulty(true, err.str());
+  LOG_ERROR() << err.str();
+
   if (listen_ && listen_->IsActive()) {
     listen_->ListenText("%s", err.str().c_str());
   }
-
+  SetDelivered();
   node_event_.notify_one();
 }
 
 void SparkplugNode::ConnectionLost(const std::string& reason) {
   std::ostringstream err;
   err << "Connection lost. Reason: " << reason;
-  if (!IsFaulty()) {
-    LOG_ERROR() << err.str();
-  }
-  SetFaulty(true, err.str());
+  LOG_INFO() << err.str(); // Not an error. This is a normal event
+
+  SetConnectionLost();
   if (listen_ && listen_->IsActive()) {
     listen_->ListenText("%s", err.str().c_str());
   }
@@ -189,10 +232,43 @@ void SparkplugNode::Message(const std::string& topic_name, const MQTTAsync_messa
     LOG_ERROR() << "Invalid payload length. Length: " << message.payloadlen;
     return;
   }
-  const auto data_size = static_cast<size_t>(message.payloadlen);
 
-  auto* topic = GetTopic(topic_name);
-  if (topic == nullptr) {
+  // I need to find the STATE,NBIRTH or DBIRTH topic for each message
+
+  // Create a temporary topic that is used to parse the topic name.
+  SparkplugTopic temp_topic(*this);
+  temp_topic.Topic(topic_name);
+  const std::string& message_type = temp_topic.MessageType();
+  if (listen_ && listen_->IsActive()) {
+    listen_->ListenText("Message Topic: %s: %s", topic_name.c_str(), message_type.c_str());
+  }
+  const auto& group_name = temp_topic.GroupId();
+  const auto& node_name = temp_topic.NodeId();
+  const auto& device_name = temp_topic.DeviceId();
+
+  if (message_type == kState ) {
+    HandleStateMessage(node_name, message);
+  } else if (message_type == kNodeBirth) {
+    HandleNodeBirthMessage(group_name, node_name, message);
+  } else if (message_type == kNodeDeath) {
+    HandleNodeDeathMessage(group_name, node_name, message);
+  } else if (message_type == kNodeCommand) {
+    HandleNodeCommandMessage(group_name, node_name, message);
+  } else if (message_type == kNodeData) {
+    HandleNodeDataMessage(group_name, node_name, message);
+  } else if (message_type == kDeviceBirth) {
+    HandleDeviceBirthMessage(group_name, node_name, device_name, message);
+  } else if (message_type == kDeviceDeath) {
+    HandleDeviceDeathMessage(group_name, node_name, device_name, message);
+  } else if (message_type == kDeviceCommand) {
+    HandleDeviceCommandMessage(group_name, node_name, device_name, message);
+  } else if (message_type == kDeviceData) {
+    HandleDeviceDataMessage(group_name, node_name, device_name, message);
+  }
+
+  /*
+  auto* birth = GetTopicByMessageType(kNodeBirth.data());
+  if (birth == nullptr) {
     // The topic doesn't exist. If I receive this message, I have
     // set up a subscription on this message. Create a topic
     // for the incoming. However, it is only the xBIRTH messages
@@ -211,6 +287,7 @@ void SparkplugNode::Message(const std::string& topic_name, const MQTTAsync_messa
       topic->ContentType("application/protobuf");
     }
     topic->Retained(message.retained != 0);
+
 
   }
 
@@ -242,13 +319,11 @@ void SparkplugNode::Message(const std::string& topic_name, const MQTTAsync_messa
     }
     return;
   }
+  */
 
-  if (listen_ && listen_->IsActive()) {
-    listen_->ListenText("Message Topic: %s: %s", topic_name.c_str(), topic->MessageType().c_str());
-  }
 
   // Parse out the payload data and optional create the metrics.
-  topic->ParsePayloadData();
+  // topic->ParsePayloadData();
 
 }
 
@@ -271,6 +346,40 @@ bool SparkplugNode::Start() {
     LOG_ERROR() << "There is no group ID defined. Cannot start the node. Node: " << Name();
     return false;
   }
+
+  // Set the publishing flag to true. This defines that these messages should not be
+  // updated from a subscription.
+  if (auto* birth_topic = GetTopicByMessageType(kNodeBirth.data());
+      birth_topic != nullptr ) {
+    std::ostringstream topic_name;
+    topic_name << kNamespace << "/" << GroupId() << "/" << kNodeBirth << "/" << Name();
+    birth_topic->Topic(topic_name.str());
+    birth_topic->Publish(true);
+  }
+  if (auto* death_topic = GetTopicByMessageType(kNodeDeath.data());
+      death_topic != nullptr ) {
+    std::ostringstream topic_name;
+    topic_name << kNamespace << "/" << GroupId() << "/" << kNodeDeath << "/" << Name();
+    death_topic->Publish(true);
+  }
+
+  // Add subscription on required commands
+  std::ostringstream my_node_commands;
+  my_node_commands << kNamespace << "/" << GroupId() << "/NCMD/" << Name() << "/#";
+  AddSubscription(my_node_commands.str());
+
+  std::ostringstream my_device_commands;
+  my_device_commands << kNamespace << "/" << GroupId() << "/DCMD/" << Name() << "/#";
+  AddSubscription(my_device_commands.str());
+
+  // Need to keep track of my active host
+  std::ostringstream my_hosts;
+  my_hosts << kNamespace << "/STATE/#";
+  AddSubscription(my_hosts.str());
+
+  // Set alias numbers to all metrics.
+  AssignAliasNumbers();
+
   stop_node_task_ = false;
   work_thread_ = std::thread(&SparkplugNode::NodeTask, this);
 
@@ -292,6 +401,7 @@ bool SparkplugNode::Stop() {
     MQTTAsync_destroy(&handle_);
     handle_ = nullptr;
   }
+
   return true;
 }
 
@@ -302,26 +412,8 @@ bool SparkplugNode::CreateNode() {
     handle_ = nullptr;
   }
 
-  // Add subscription on my commands
-  std::ostringstream my_node_commands;
-  my_node_commands << kNamespace << "/" << GroupId() << "/NCMD/" << Name() << "/#";
-  AddSubscriptionByTopic(my_node_commands.str());
 
-  std::ostringstream my_device_commands;
-  my_device_commands << kNamespace << "/" << GroupId() << "/DCMD/" << Name() << "/#";
-  AddSubscriptionByTopic(my_device_commands.str());
-
-  // Need to keep track of my active host
-  std::ostringstream my_hosts;
-  my_hosts << kNamespace << "/STATE/#";
-  AddSubscriptionByTopic(my_hosts.str());
-
-  CreateNodeDeathTopic();
-  CreateNodeBirthTopic(); // The birth topic actually holds the nodes all metrics
-
-  SetFaulty(false, {});
-
-  // Set the host ID as Listen pre-text debugger text
+    // Set the host ID as Listen pre-text debugger text
   if (listen_ && !Name().empty()) {
     listen_->PreText(Name());
   }
@@ -358,7 +450,7 @@ bool SparkplugNode::CreateNode() {
     if (cause != nullptr && strlen(cause) > 0) {
       err << "Error: " << cause;
     }
-    SetFaulty(true, err.str());
+
     LOG_ERROR() << err.str();
     return false;
   }
@@ -374,7 +466,7 @@ bool SparkplugNode::CreateNode() {
     if (cause != nullptr && strlen(cause) > 0) {
       err << "Error: " << cause;
     }
-    SetFaulty(true, err.str());
+
     LOG_ERROR() << err.str();
     return false;
   }
@@ -447,7 +539,7 @@ void SparkplugNode::CreateNodeDeathTopic() {
   topic->GroupId(GroupId());
   topic->MessageType("NDEATH");
   topic->NodeId(Name());
-  topic->Publish(true);
+  topic->Publish(false);
   topic->Qos(QualityOfService::Qos1);
   topic->Retained(false);
 
@@ -486,7 +578,7 @@ void SparkplugNode::CreateNodeBirthTopic() {
   topic->GroupId(GroupId());
   topic->MessageType("NBIRTH");
   topic->NodeId(Name());
-  topic->Publish(true);
+  topic->Publish(false); // Is set to true if node is started
   topic->Qos(QualityOfService::Qos0);
   topic->Retained(false);
 
@@ -576,7 +668,7 @@ ITopic *SparkplugNode::CreateTopic() {
   return topic_list_.back().get();
 }
 
-ITopic *SparkplugNode::AddMetric(const std::shared_ptr<IMetric> &value) {
+ITopic *SparkplugNode::AddMetric(const std::shared_ptr<Metric> &value) {
   return nullptr;
 }
 
@@ -600,7 +692,7 @@ void SparkplugNode::SendDisconnect() {
     if (cause != nullptr && strlen(cause) > 0) {
       err << "Error: " << cause;
     }
-    SetFaulty(true, err.str());
+
     if (listen_ && listen_->IsActive()) {
       listen_->ListenText("%s", err.str().c_str());
     }
@@ -617,7 +709,7 @@ void SparkplugNode::Disconnect(MQTTAsync_successData&) {
   if (listen_ && listen_->IsActive()) {
     listen_->ListenText("Node disconnected. Node: %s", Name().c_str());
   }
-  delivered_ = true;
+  SetDelivered();
   node_event_.notify_one();
 }
 
@@ -629,11 +721,11 @@ void SparkplugNode::DisconnectFailure(MQTTAsync_failureData& response) {
   if (cause != nullptr && strlen(cause) > 0) {
     err << " Error: " << cause;
   }
-  SetFaulty(true, err.str());
+
   if (listen_ && listen_->IsActive()) {
     listen_->ListenText("%s", err.str().c_str());
   }
-  delivered_ = true;
+  SetDelivered();
   node_event_.notify_one();
 }
 
@@ -866,6 +958,500 @@ void SparkplugNode::PollDevices() {
       device->Poll();
     }
   }
+}
+
+SparkplugHost *SparkplugNode::GetHost(const std::string &host_id) {
+
+  try {
+    // First check if this client is the requested host
+    if (auto* my_host = dynamic_cast<SparkplugHost*>(this);
+        my_host != nullptr && IEquals(host_id, my_host->Name())) {
+      return my_host;
+    }
+    // Check remote hosts
+    auto itr = std::find_if(node_list_.begin(), node_list_.end(),
+                            [&] (auto& client) -> bool {
+                              auto* host = dynamic_cast<SparkplugHost*>( client.get());
+                              return host != nullptr && IEquals(host->Name(), host_id);
+                            });
+    return itr == node_list_.end() ? nullptr :
+           dynamic_cast<SparkplugHost*>(itr->get());
+  } catch (const std::exception& ) {
+
+  }
+  return nullptr;
+}
+
+SparkplugNode *SparkplugNode::GetNode(const std::string &group_id, const std::string &node_id) {
+  if ( group_id.empty() || node_id.empty() ) {
+    return nullptr;
+  }
+
+  // First check if this client is the requested host
+  if (IEquals(group_id, GroupId()) && IEquals(node_id, Name()) ) {
+    return this;
+  }
+
+  // Check remote nodes/hosts
+  auto itr = std::find_if(node_list_.begin(), node_list_.end(),
+                          [&] (auto& client) -> bool {
+                            auto* node = client.get();
+                            return node != nullptr && IEquals(group_id, node->GroupId() )
+                                && IEquals(node->Name(), node_id);
+                          });
+  return itr == node_list_.end() ? nullptr : dynamic_cast<SparkplugNode*>(itr->get());
+}
+
+
+void SparkplugNode::HandleStateMessage(const std::string& host_name, const MQTTAsync_message& message) {
+  if ( host_name.empty() ) {
+    return;
+  }
+
+  // The Sparkplug node needs to keep a list of SCADA hosts.
+  // If it doesn't exist, create it
+  auto* host = GetHost(host_name);
+  if (host == nullptr) {
+    auto sparkplug_host = PubSubFactory::CreatePubSubClient(PubSubType::SparkplugHost);
+    if (sparkplug_host) {
+      sparkplug_host->Name(host_name);
+      node_list_.emplace_back(std::move(sparkplug_host));
+      host = GetHost(host_name);
+    }
+  }
+
+  if (host == nullptr) {
+    LOG_ERROR() << "Failed to create a remote host. Host: " << host_name;
+    return;
+  }
+
+  auto *state_topic = host->GetTopicByMessageType(kState.data());
+  if (state_topic == nullptr || state_topic->Publish()) {
+    return;
+  }
+
+  // Update the metrics. It is the online metrics that is of interest.
+  auto &payload = state_topic->GetPayload();
+  auto &payload_data = payload.Body();
+  try {
+    const auto data_size = static_cast<size_t>(message.payloadlen);
+    payload_data.resize(data_size);
+    if (message.payload != nullptr && data_size > 0) {
+      std::memcpy(payload_data.data(), message.payload, data_size);
+      payload.ParseSparkplugJson(true);
+    }
+  } catch (const std::exception &err) {
+    LOG_ERROR() << "Failed to parse the STATE payload. Error: " << err.what();
+  }
+}
+
+void SparkplugNode::HandleNodeBirthMessage(const std::string &group_name,
+                                           const std::string &node_name,
+                                           const MQTTAsync_message &message) {
+  if ( group_name.empty() || node_name.empty() ) {
+    return;
+  }
+
+  // The Sparkplug node have subscriptions on these node.
+  // If the node doesn't exist, create it
+  auto* node = GetNode(group_name, node_name);
+  if (node == nullptr) {
+    auto sparkplug_node = PubSubFactory::CreatePubSubClient(PubSubType::SparkplugNode);
+    if (sparkplug_node) {
+      sparkplug_node->GroupId(group_name);
+      sparkplug_node->Name(node_name);
+      node_list_.emplace_back(std::move(sparkplug_node) );
+      node = GetNode(group_name, node_name);
+    }
+  }
+
+  if (node == nullptr) {
+    LOG_ERROR() << "Failed to create a remote node. Group/Node: "
+      << group_name << "/" << node_name;
+    return;
+  }
+
+  auto *birth_topic = node->GetTopicByMessageType(kNodeBirth.data());
+  if (birth_topic == nullptr || birth_topic->Publish()) {
+    return;
+  }
+
+  // Update the metrics. It is the online metrics that is of interest.
+  auto &payload = birth_topic->GetPayload();
+  auto &payload_data = payload.Body();
+  try {
+    const auto data_size = static_cast<size_t>(message.payloadlen);
+    payload_data.resize(data_size);
+    if (message.payload != nullptr && data_size > 0) {
+      std::memcpy(payload_data.data(), message.payload, data_size);
+      payload.ParseSparkplugProtobuf(true);
+    }
+  } catch (const std::exception &err) {
+    LOG_ERROR() << "Failed to parse the NBIRTH  payload. Error: " << err.what();
+  }
+
+}
+void SparkplugNode::HandleNodeDeathMessage(const std::string &group_name,
+                                           const std::string &node_name,
+                                           const MQTTAsync_message &message) {
+  if (group_name.empty() || node_name.empty()) {
+    return;
+  }
+  // The Sparkplug node have subscriptions on these node.
+  // If the node doesn't exist, ignore the message
+  auto* node = GetNode(group_name, node_name);
+  if (node == nullptr) {
+    return;
+  }
+
+  // The death topic is updated with the payload while the birth topic compare
+  // the birt/death sequence number.
+  auto *birth_topic = node->GetTopicByMessageType(kNodeBirth.data());
+  auto *death_topic = node->GetTopicByMessageType(kNodeDeath.data());
+  if (death_topic == nullptr || death_topic->Publish() || birth_topic == nullptr ) {
+    // The message is handle by the node/device thread and polling of devices.
+    return;
+  }
+
+    // Update the message payload. It's only the bdSeq number that needs to be cecked
+  auto &payload = death_topic->GetPayload();
+  auto &payload_data = payload.Body();
+  try {
+    const auto data_size = static_cast<size_t>(message.payloadlen);
+    payload_data.resize(data_size);
+    if (message.payload != nullptr && data_size > 0) {
+      std::memcpy(payload_data.data(), message.payload, data_size);
+      payload.ParseSparkplugProtobuf(true);
+    }
+  } catch (const std::exception &err) {
+    LOG_ERROR() << "Failed to parse the NDEATH payload. Error: " << err.what();
+  }
+
+  // Todo: Check that the NBIRTH and NDEATH bdSeqNo match. Otherwise ignore
+  // Set all metrics as STALE (invalid).
+  birth_topic->SetAllMetricsInvalid();
+}
+
+void SparkplugNode::HandleNodeCommandMessage(const std::string &group_name,
+                                             const std::string &node_name,
+                                             const MQTTAsync_message &message) {
+  if (group_name.empty() || node_name.empty()) {
+    return;
+  }
+
+  auto* node = GetNode(group_name, node_name);
+  if (node == nullptr) {
+    return;
+  }
+  // Fetch the NBIRTH topic that have all metrics
+  auto *birth_topic = GetTopicByMessageType(kNodeBirth.data());
+  // Note that the topic publish is the only node that should handle
+  // the CMD. The node should not subscribe other node NCMD.
+  if (birth_topic == nullptr || !birth_topic->Publish() ) {
+    return;
+  }
+
+  // Update the metrics. It is the online metrics that is of interest.
+  auto &payload = birth_topic->GetPayload();
+  auto &payload_data = payload.Body();
+  try {
+    const auto data_size = static_cast<size_t>(message.payloadlen);
+    payload_data.resize(data_size);
+    if (message.payload != nullptr && data_size > 0) {
+      std::memcpy(payload_data.data(), message.payload, data_size);
+      payload.ParseSparkplugProtobuf(true);
+    }
+  } catch (const std::exception &err) {
+    LOG_ERROR() << "Failed to parse the NCMD payload. Error: " << err.what();
+  }
+
+  // Todo: Handle any of the commands. Need to define what is a command.
+}
+
+void SparkplugNode::HandleNodeDataMessage(const std::string &group_name,
+                                          const std::string &node_name,
+                                          const MQTTAsync_message &message) {
+  // The Sparkplug node have subscriptions on these node.
+  // If the node doesn't exist, this means that the NBIRTH message
+  // hasn't been received yet. Don't know which metrics that exist
+  // on this node.
+  auto* node = GetNode(group_name, node_name);
+  if (node == nullptr) {
+    // The NBIRTH has not been received yet. Ignore the message.
+    // This is not an error.
+    return;
+  }
+  auto *birth_topic = node->GetTopicByMessageType(kNodeBirth.data());
+
+  // Update metrics if the topic not is publish.
+  if (birth_topic == nullptr || birth_topic->Publish()) {
+    // Do not update if the topic is marked as publish.
+    // This is not an error.
+    return;
+  }
+
+  // Update the metrics. It is the online metrics that is of interest.
+  auto &payload = birth_topic->GetPayload();
+  auto &payload_data = payload.Body();
+  try {
+    const auto data_size = static_cast<size_t>(message.payloadlen);
+    payload_data.resize(data_size);
+    if (message.payload != nullptr && data_size > 0) {
+      std::memcpy(payload_data.data(), message.payload, data_size);
+      payload.ParseSparkplugProtobuf(false); // Note that metrics must exist.
+    }
+  } catch (const std::exception &err) {
+    LOG_ERROR() << "Failed to parse the NDATA  payload. Error: " << err.what();
+  }
+}
+
+void SparkplugNode::HandleDeviceBirthMessage(const std::string &group_name,
+                                             const std::string &node_name,
+                                             const std::string &device_name,
+                                             const MQTTAsync_message &message) {
+  if (group_name.empty() || node_name.empty() || device_name.empty() ) {
+    return;
+  }
+  // The Sparkplug node have subscriptions on these node.
+  // If the node doesn't exist, create it
+  auto* node = GetNode(group_name, node_name);
+  if (node == nullptr) {
+    // Questionable if a node should be created here without NBIRTH message
+    auto sparkplug_node = PubSubFactory::CreatePubSubClient(PubSubType::SparkplugNode);
+    if (sparkplug_node) {
+      sparkplug_node->GroupId(group_name);
+      sparkplug_node->Name(node_name);
+      node_list_.emplace_back(std::move(sparkplug_node) );
+      node = GetNode(group_name, node_name);
+    }
+  }
+
+  if (node == nullptr) {
+    LOG_ERROR() << "Failed to create a remote node. Group/Node: "
+                << group_name << "/" << node_name;
+    return;
+  }
+  auto *nbirth_topic = node->GetTopicByMessageType(kNodeBirth.data());
+  if (nbirth_topic == nullptr || nbirth_topic->Publish()) {
+    // Ignore if this node publish data
+    return;
+  }
+
+  auto* device = node->GetDevice(device_name);
+  if (device == nullptr) {
+    // Questionable if a node should be created here without NBIRTH message
+   device = node->CreateDevice(device_name);
+  }
+  if (device == nullptr) {
+    LOG_ERROR() << "Failed to create a device node. Group/Node/Device: "
+                << group_name << "/" << node_name << "/" << device_name;
+    return;
+  }
+  auto *dbirth_topic = device->GetTopicByMessageType(kDeviceBirth.data());
+  if (dbirth_topic == nullptr || dbirth_topic->Publish()) {
+    // Ignore if this device publish data
+    return;
+  }
+  // Update the metrics. It is the online metrics that is of interest.
+  auto &payload = dbirth_topic->GetPayload();
+  auto &payload_data = payload.Body();
+  try {
+    const auto data_size = static_cast<size_t>(message.payloadlen);
+    payload_data.resize(data_size);
+    if (message.payload != nullptr && data_size > 0) {
+      std::memcpy(payload_data.data(), message.payload, data_size);
+      payload.ParseSparkplugProtobuf(true);
+    }
+  } catch (const std::exception &err) {
+    LOG_ERROR() << "Failed to parse the DBIRTH  payload. Error: " << err.what();
+  }
+}
+
+void SparkplugNode::HandleDeviceDeathMessage(const std::string &group_name,
+                                             const std::string &node_name,
+                                             const std::string &device_name,
+                                             const MQTTAsync_message &message) {
+  // Check the validity of the names.
+  if (group_name.empty() || node_name.empty() || device_name.empty() ) {
+    return;
+  }
+
+  // First get the node that holds the device object.
+  auto* node = GetNode(group_name, node_name);
+  if (node == nullptr) {
+    // If the node doesn't exist, neither do the device.
+    return;
+  }
+
+  auto* device = node->GetDevice(device_name);
+  if (device == nullptr) {
+    // If the device doesn't exist, then do nothing.
+    return;
+  }
+
+  // Need both birth and death topic
+  auto *birth_topic = device->GetTopicByMessageType(kDeviceBirth.data());
+  auto *death_topic = device->GetTopicByMessageType(kDeviceDeath.data());
+  if (birth_topic == nullptr || death_topic == nullptr || death_topic->Publish()) {
+    // Ignore if this device publish data
+    return;
+  }
+
+  // Update the metrics. It is the online metrics that is of interest.
+  auto &payload = death_topic->GetPayload();
+  auto &payload_data = payload.Body();
+  try {
+    const auto data_size = static_cast<size_t>(message.payloadlen);
+    payload_data.resize(data_size);
+    if (message.payload != nullptr && data_size > 0) {
+      std::memcpy(payload_data.data(), message.payload, data_size);
+      payload.ParseSparkplugProtobuf(true);
+    }
+  } catch (const std::exception &err) {
+    LOG_ERROR() << "Failed to parse the DDEATH  payload. Error: " << err.what();
+  }
+  // Set all metrics in the device as STALE (invalid)
+  birth_topic->SetAllMetricsInvalid();
+}
+
+void SparkplugNode::HandleDeviceCommandMessage(const std::string &group_name,
+                                               const std::string &node_name,
+                                               const std::string &device_name,
+                                               const MQTTAsync_message &message) {
+  if (group_name.empty() || node_name.empty() || device_name.empty() ) {
+    return;
+  }
+
+  auto* node = GetNode(group_name, node_name);
+  if (node == nullptr) {
+    // Questionable if a node should be created here without NBIRTH message
+    auto sparkplug_node = PubSubFactory::CreatePubSubClient(PubSubType::SparkplugNode);
+    if (sparkplug_node) {
+      sparkplug_node->GroupId(group_name);
+      sparkplug_node->Name(node_name);
+      node_list_.emplace_back(std::move(sparkplug_node) );
+      node = GetNode(group_name, node_name);
+    }
+  }
+
+  if (node == nullptr) {
+    LOG_ERROR() << "Failed to create a remote node. Group/Node: "
+                << group_name << "/" << node_name;
+    return;
+  }
+
+  auto* device = node->GetDevice(device_name);
+  if (device == nullptr) {
+    // Need the DBIRTH message first, then it is possible to parse this message
+    return;
+  }
+
+  auto *birth_topic = device->GetTopicByMessageType(kDeviceBirth.data());
+  if (birth_topic == nullptr || birth_topic->Publish()) {
+    // Ignore if this device publish data
+    return;
+  }
+  // Update the metrics. It is the online metrics that is of interest.
+  auto &payload = birth_topic->GetPayload();
+  auto &payload_data = payload.Body();
+  try {
+    const auto data_size = static_cast<size_t>(message.payloadlen);
+    payload_data.resize(data_size);
+    if (message.payload != nullptr && data_size > 0) {
+      std::memcpy(payload_data.data(), message.payload, data_size);
+      payload.ParseSparkplugProtobuf(true);
+    }
+  } catch (const std::exception &err) {
+    LOG_ERROR() << "Failed to parse the DBIRTH  payload. Error: " << err.what();
+  }
+
+  // Todo: Signal to check-up commands
+}
+
+void SparkplugNode::HandleDeviceDataMessage(const std::string &group_name,
+                                            const std::string &node_name,
+                                            const std::string &device_name,
+                                            const MQTTAsync_message &message) {
+  if (group_name.empty() || node_name.empty() || device_name.empty() ) {
+    return;
+  }
+
+  auto* node = GetNode(group_name, node_name);
+  if (node == nullptr) {
+    // Questionable if a node should be created here without NBIRTH message
+    auto sparkplug_node = PubSubFactory::CreatePubSubClient(PubSubType::SparkplugNode);
+    if (sparkplug_node) {
+      sparkplug_node->GroupId(group_name);
+      sparkplug_node->Name(node_name);
+      node_list_.emplace_back(std::move(sparkplug_node) );
+      node = GetNode(group_name, node_name);
+    }
+  }
+
+  if (node == nullptr) {
+    LOG_ERROR() << "Failed to create a remote node. Group/Node: "
+                << group_name << "/" << node_name;
+    return;
+  }
+
+  auto* device = node->GetDevice(device_name);
+  if (device == nullptr) {
+    // Need the DBIRTH message first, then it is possible to parse this message
+    return;
+  }
+
+  auto *birth_topic = device->GetTopicByMessageType(kDeviceBirth.data());
+  if (birth_topic == nullptr || birth_topic->Publish()) {
+    // Ignore if this device publish data
+    return;
+  }
+  // Update the metrics. It is the online metrics that is of interest.
+  auto &payload = birth_topic->GetPayload();
+  auto &payload_data = payload.Body();
+  try {
+    const auto data_size = static_cast<size_t>(message.payloadlen);
+    payload_data.resize(data_size);
+    if (message.payload != nullptr && data_size > 0) {
+      std::memcpy(payload_data.data(), message.payload, data_size);
+      payload.ParseSparkplugProtobuf(true);
+    }
+  } catch (const std::exception &err) {
+    LOG_ERROR() << "Failed to parse the DBIRTH  payload. Error: " << err.what();
+  }
+}
+
+void SparkplugNode::AssignAliasNumbers() {
+  uint64_t alias_number = 1;
+  auto topic = GetTopicByMessageType("NBIRTH");
+  if (topic != nullptr) {
+    auto& payload = topic->GetPayload();
+    auto& metric_list = payload.Metrics();
+    for (auto& [name, metric] : metric_list) {
+      if (metric) {
+        metric->Alias(alias_number);
+        ++alias_number;
+      }
+    }
+  }
+
+  for (auto& [device_name, device] : device_list_) {
+    if (device) {
+      auto* birth_topic = device->GetTopicByMessageType("DBIRTH");
+      if (birth_topic != nullptr) {
+        auto& payload = birth_topic->GetPayload();
+        auto& metric_list = payload.Metrics();
+        for (auto& [name, metric] : metric_list) {
+          if (metric) {
+            metric->Alias(alias_number);
+            ++alias_number;
+          }
+        }
+      }
+    }
+  }
+
+  LOG_TRACE() << "Max alias number. Alias: " << alias_number;
+
 }
 
 } // pub_sub

@@ -100,7 +100,6 @@ TEST_F(TestSparkplug, TestPrimaryHost) {
   host->Port(kBasicPort);
   host->Name(kHost.data());
   host->InService(false);
-  host->AddSubscriptionByTopic("spBv1.0/#");
 
   const bool start = host->Start();
   ASSERT_TRUE(start);
@@ -157,7 +156,7 @@ TEST_F(TestSparkplug, TestFailingHost) {
   host->Port(kFailingPort); // Note: invalid port
   host->Name(kHost.data());
   host->InService(false);
-  host->AddSubscriptionByTopic("spBv1.0/#");
+  host->AddSubscription("spBv1.0/#");
 
   const bool start = host->Start();
   ASSERT_TRUE(start); // Should start but never connect
@@ -194,7 +193,7 @@ TEST_F(TestSparkplug, TestNode) {
   ASSERT_TRUE(device1 != nullptr);
   device1->InService(true);
 
-  std::shared_ptr<IMetric> metric1 = std::make_shared<IMetric>();
+  std::shared_ptr<Metric> metric1 = std::make_shared<Metric>();
   metric1->Name("Metric1");
   metric1->Type(MetricType::Float);
   metric1->Unit("V");

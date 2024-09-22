@@ -46,13 +46,13 @@ std::unique_ptr<IPubSubClient> PubSubFactory::CreatePubSubClient(PubSubType type
   return client;
 }
 
-std::shared_ptr<IMetric> PubSubFactory::CreateValue(const std::string_view &name) {
-  auto value = std::make_shared<IMetric>(name);
+std::shared_ptr<Metric> PubSubFactory::CreateMetric(const std::string_view &name) {
+  auto value = std::make_shared<Metric>(name);
   return value;
 }
 
-std::shared_ptr<IMetric> PubSubFactory::CreateValue(const std::string &name) {
-  auto value = std::make_shared<IMetric>(name);
+std::shared_ptr<Metric> PubSubFactory::CreateMetric(const std::string &name) {
+  auto value = std::make_shared<Metric>(name);
   return value;
 }
 

@@ -7,7 +7,10 @@
 #include "MQTTAsync.h"
 #include "util/logstream.h"
 #include "sparkplugnode.h"
+
 #include <array>
+#include <algorithm>
+
 namespace {
   constexpr std::string_view kNamespace = "spBv1.0";
 }

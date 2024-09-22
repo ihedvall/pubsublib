@@ -2,12 +2,15 @@
  * Copyright 2022 Ingemar Hedvall
  * SPDX-License-Identifier: MIT
  */
+#include "mqttclient.h"
+
 #include <chrono>
 #include <functional>
+
 #include "util/logstream.h"
 #include "util/utilfactory.h"
 #include "util/timestamp.h"
-#include "mqttclient.h"
+
 #include "mqtttopic.h"
 
 using namespace std::chrono_literals;
@@ -21,6 +24,7 @@ namespace {
 namespace pub_sub {
 MqttClient::MqttClient()
 : listen_(std::move(util::UtilFactory::CreateListen("ListenProxy", "LISMQTT"))) {
+  ResetConnectionLost();
 
 }
 MqttClient::~MqttClient() {
@@ -50,7 +54,7 @@ ITopic *MqttClient::CreateTopic() {
 }
 
 
-ITopic *MqttClient::AddMetric(const std::shared_ptr<IMetric>& value) {
+ITopic *MqttClient::AddMetric(const std::shared_ptr<Metric>& value) {
   auto* topic = CreateTopic(); // Note that this call adds the topic to its list.
   if ( topic == nullptr) {
     return nullptr;
@@ -60,14 +64,12 @@ ITopic *MqttClient::AddMetric(const std::shared_ptr<IMetric>& value) {
   // Set default value
   const auto payload = value->GetMqttString();
   if (value->IsNull()) {
-    topic->Payload("");
+    topic->PayloadBody("");
   } else {
-    topic->Payload(payload);
+    topic->PayloadBody(payload);
   }
-  value->SetPublish([this] (IMetric& value) { OnPublish(value); });
+  value->SetPublish([this] (Metric& value) { OnPublish(value); });
   topic->Value(value);
-
-
 
   return topic;
 }
@@ -77,7 +79,7 @@ bool MqttClient::IsConnected() const {
 }
 
 bool MqttClient::Start() {
-  SetFaulty(false, "");
+
   if (listen_ && !Name().empty()) {
     listen_->PreText(Name());
   }
@@ -115,7 +117,7 @@ bool MqttClient::Start() {
     if (cause != nullptr && strlen(cause) > 0) {
       err << "Error: " << cause;
     }
-    SetFaulty(true, err.str());
+
     LOG_ERROR() << err.str();
     return false;
   }
@@ -131,7 +133,7 @@ bool MqttClient::Start() {
     if (cause != nullptr && strlen(cause) > 0) {
       err << "Error: " << cause;
     }
-    SetFaulty(true, err.str());
+
     LOG_ERROR() << err.str();
     return false;
   }
@@ -142,6 +144,10 @@ bool MqttClient::Start() {
 }
 
 bool MqttClient::SendConnect() {
+
+  // Reset the connection lost to detect any failing startup
+  ResetConnectionLost();
+
   MQTTAsync_connectOptions connect_options = MQTTAsync_connectOptions_initializer;
   connect_options.keepAliveInterval = 60; // 60 seconds between keep alive messages
   connect_options.cleansession = MQTTASYNC_TRUE;
@@ -158,7 +164,7 @@ bool MqttClient::SendConnect() {
     if (cause != nullptr && strlen(cause) > 0) {
       err << "Error: " << cause;
     }
-    SetFaulty(true, err.str());
+
     LOG_ERROR() << err.str();
     return false;
   }
@@ -176,6 +182,7 @@ bool MqttClient::Stop() {
   if (listen_ && listen_->IsActive() && listen_->LogLevel() == 3) {
     listen_->ListenText("Disconnecting");
   }
+  ResetConnectionLost();
   MQTTAsync_disconnectOptions disconnect_options = MQTTAsync_disconnectOptions_initializer;
   disconnect_options.onSuccess = OnDisconnect;
   disconnect_options.onFailure = OnDisconnectFailure;
@@ -190,7 +197,7 @@ bool MqttClient::Stop() {
     if (cause != nullptr && strlen(cause) > 0) {
       err << "Error: " << cause;
     }
-    SetFaulty(true, err.str());
+
     if (listen_ && listen_->IsActive()) {
       listen_->ListenText("%s", err.str().c_str());
     }
@@ -216,13 +223,15 @@ void MqttClient::ConnectionLost(const std::string& cause) {
   if (!cause.empty()) {
     err << " Error: " << cause;
   }
-  SetFaulty(true, err.str());
+
   if (listen_ && listen_->IsActive()) {
     listen_->ListenText("%s", err.str().c_str() );
   }
+  SetConnectionLost();
 }
 
 void MqttClient::Message(const std::string& topic_name, const MQTTAsync_message& message) {
+  ResetConnectionLost();
   const auto qos = static_cast<QualityOfService>(message.qos);
   std::vector<uint8_t> payload(message.payloadlen, 0);
   if (message.payload != nullptr && message.payloadlen > 0) {
@@ -234,33 +243,31 @@ void MqttClient::Message(const std::string& topic_name, const MQTTAsync_message&
     topic->Topic(topic_name);
   }
 
-  topic->Payload(payload);
+  topic->PayloadBody(payload);
   topic->Qos(qos);
   topic->Retained(message.retained == 1);
   const auto& value = topic->Value();
   if (value) {
     const auto now = TimeStampToNs(); // MQTT doesn't supply a network time so use the computer time.
     value->Timestamp(now);
-    const auto text = topic->Payload<std::string>();
+    const auto text = topic->PayloadBody<std::string>();
     value->Value(text);
     value->OnUpdate();
   }
 
   if (listen_ && listen_->IsActive() && listen_->LogLevel() != 1) {
     listen_->ListenText("Sub-Topic: %s, Value: %s", topic_name.c_str(),
-                                topic->Payload<std::string>().c_str());
+                                topic->PayloadBody<std::string>().c_str());
   }
 }
 
 void MqttClient::DeliveryComplete(MQTTAsync_token token) {
-  if (listen_ && listen_->IsActive() && listen_->LogLevel() == 3) {
-    listen_->ListenText("Delivered: Token: %d", token);
-  }
+  ResetConnectionLost();
 }
 
 
 void MqttClient::Connect(const MQTTAsync_successData* response) {
-  SetFaulty(false,"");
+
   if (response != nullptr && listen_ && listen_->IsActive()) {
     const std::string server_url = response->alt.connect.serverURI;
     const int version = response->alt.connect.MQTTVersion;
@@ -268,6 +275,7 @@ void MqttClient::Connect(const MQTTAsync_successData* response) {
     listen_->ListenText("Connected: Server: %s, Version: %d, Session: %d",
                                 server_url.c_str(), version, session_present);
   }
+  ResetConnectionLost();
   DoConnect();
 }
 
@@ -281,15 +289,17 @@ void MqttClient::ConnectFailure( MQTTAsync_failureData* response) {
     if (cause != nullptr && strlen(cause) > 0) {
       err << " Error: " << cause;
     }
-    SetFaulty(true, err.str());
+
   }
   if (listen_ && listen_->IsActive()) {
     listen_->ListenText("%s", err.str().c_str());
   }
+  SetConnectionLost();
 }
 
 void MqttClient::Disconnect(MQTTAsync_successData* response) {
   disconnect_ready_ = true;
+  ResetConnectionLost();
 }
 
 void MqttClient::DisconnectFailure(MQTTAsync_failureData* response) {
@@ -301,10 +311,11 @@ void MqttClient::DisconnectFailure(MQTTAsync_failureData* response) {
     if (cause != nullptr && strlen(cause) > 0) {
       err << " Error: " << cause;
     }
-    SetFaulty(true, err.str());
+
     if (listen_ && listen_->IsActive()) {
       listen_->ListenText("%s", err.str().c_str());
     }
+    SetConnectionLost();
   }
   disconnect_ready_ = true;
 }
@@ -323,7 +334,6 @@ void MqttClient::DoConnect() {
     }
   }
 }
-
 
 void MqttClient::OnConnectionLost(void *context, char *cause) {
   auto *client = reinterpret_cast<pub_sub::MqttClient *>(context);
@@ -388,13 +398,13 @@ void MqttClient::OnDisconnectFailure(void* context, MQTTAsync_failureData* respo
   }
 }
 
-void MqttClient::OnPublish(IMetric &value) {
+void MqttClient::OnPublish(Metric &value) {
   auto* topic = GetTopic(value.Name());
   if (topic == nullptr) {
     return;
   }
   const auto payload_string = value.GetMqttString();
-  topic->Payload(payload_string);
+  topic->PayloadBody(payload_string);
 }
 
 bool MqttClient::IsOnline() const {

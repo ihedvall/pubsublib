@@ -20,7 +20,7 @@ class SparkplugDevice : public IPubSubClient {
   bool IsOnline() const override;
   bool IsOffline() const override;
 
-  ITopic* AddMetric(const std::shared_ptr<IMetric>& value) override;
+  ITopic* AddMetric(const std::shared_ptr<Metric>& value) override;
   ITopic* CreateTopic() override;
 
   bool Start() override;

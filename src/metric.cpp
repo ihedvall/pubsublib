@@ -4,7 +4,7 @@
  */
 
 
-#include "pubsub/imetric.h"
+#include "pubsub/metric.h"
 
 #include <util/stringutil.h>
 
@@ -17,67 +17,22 @@ using namespace org::eclipse::tahu::protobuf;
 
 namespace pub_sub {
 
-template<>
-bool MetricProperty::Value() const {
-  if (value.empty()) {
-    return false;
-  }
-  switch (value[0]) {
-    case 'Y':
-    case 'y':
-    case 'T':
-    case 't':
-    case '1':
-      return true;
 
-    default:
-      break;
-  }
-  return false;
-}
-
-template<>
-uint8_t MetricProperty::Value() const {
-  uint8_t temp = 0;
-  try {
-    temp = static_cast< uint8_t>(std::stoul(value));
-  } catch (const std::exception&) {
-
-  }
-  return temp;
-}
-
-template<>
-int8_t MetricProperty::Value() const {
-  int8_t temp = 0;
-  try {
-    temp = static_cast< int8_t>(std::stoi(value));
-  } catch (const std::exception&) {
-
-  }
-  return temp;
-}
-
-template<>
-std::string MetricProperty::Value() const {
-  return value;
-}
-
-IMetric::IMetric(std::string  name)
+Metric::Metric(std::string  name)
   : name_(std::move(name)) {
 
 }
-IMetric::IMetric(const std::string_view& name)
+Metric::Metric(const std::string_view& name)
     : name_(name.data()) {
 
 }
 
-void IMetric::Name(std::string name) {
+void Metric::Name(std::string name) {
   std::scoped_lock lock(metric_mutex_);
   name_ = std::move(name);
 }
 
-std::string IMetric::Name() const {
+std::string Metric::Name() const {
   std::scoped_lock lock(metric_mutex_);
   return name_;
 }
@@ -90,7 +45,7 @@ std::string IMetric::Name() const {
  * @param value String value with optional unit
  */
 template<>
-void IMetric::Value(std::string value) {
+void Metric::Value(std::string value) {
   // Note: Special handling for MQTT if the value is appended with unit.
   const auto type = static_cast<uint32_t>(datatype_);
   if (type > static_cast<uint32_t>(MetricType::Unknown) && type <= static_cast<uint32_t>(MetricType::Double)) {
@@ -104,40 +59,47 @@ void IMetric::Value(std::string value) {
       value = value.substr(0, space);
     }
   }
+
+  {
+    std::scoped_lock lock(metric_mutex_);
+    value_ = std::move(value);
+  }
   IsValid(true);
-  std::scoped_lock lock(metric_mutex_);
-  value_ = std::move(value);
+  SetUpdated();
 }
 
 template<>
-void IMetric::Value(std::string_view value) {
+void Metric::Value(std::string_view value) {
   {
     std::scoped_lock lock(metric_mutex_);
     value_ = value;
   }
   IsValid(true);
+  SetUpdated();
 }
 
 template<>
-void IMetric::Value(const char* value) {
+void Metric::Value(const char* value) {
   {
     std::scoped_lock lock(metric_mutex_);
     value_ = value != nullptr ? value : "";
   }
   IsValid(true);
+  SetUpdated();
 }
 
 template<>
-void IMetric::Value(bool value) {
+void Metric::Value(bool value) {
   {
     std::scoped_lock lock(metric_mutex_);
     value_ = value ? "1" : "0";
   }
   IsValid(true);
+  SetUpdated();
 }
 
 template<>
-void IMetric::Value(float value) {
+void Metric::Value(float value) {
   {
     std::scoped_lock lock(metric_mutex_);
     value_ = util::string::FloatToString(value);
@@ -147,10 +109,11 @@ void IMetric::Value(float value) {
     }
   }
   IsValid(true);
+  SetUpdated();
 }
 
 template<>
-void IMetric::Value(double value) {
+void Metric::Value(double value) {
   {
     std::scoped_lock lock(metric_mutex_);
     value_ = util::string::DoubleToString(value);
@@ -160,16 +123,17 @@ void IMetric::Value(double value) {
     }
   }
   IsValid(true);
+  SetUpdated();
 }
 
 template<>
-std::string IMetric::Value() const {
+std::string Metric::Value() const {
   std::scoped_lock lock(metric_mutex_);
   return value_;
 }
 
 template<>
-int8_t IMetric::Value() const {
+int8_t Metric::Value() const {
   int8_t temp = 0;
   std::scoped_lock lock(metric_mutex_);
   try {
@@ -181,7 +145,7 @@ int8_t IMetric::Value() const {
 }
 
 template<>
-uint8_t IMetric::Value() const {
+uint8_t Metric::Value() const {
   uint8_t temp = 0;
   std::scoped_lock lock(metric_mutex_);
   try {
@@ -193,7 +157,7 @@ uint8_t IMetric::Value() const {
 }
 
 template<>
-bool IMetric::Value() const {
+bool Metric::Value() const {
   std::scoped_lock lock(metric_mutex_);
   if (value_.empty()) {
     return false;
@@ -212,9 +176,9 @@ bool IMetric::Value() const {
   return false;
 }
 
-void IMetric::GetBody(std::vector<uint8_t> &dest) const {
+void Metric::GetBody(std::vector<uint8_t> &dest) const {
   Payload_Metric metric;
-  IPayload payload;
+  Payload payload;
   PayloadHelper helper(payload);
   helper.WriteAllMetrics(true);
   helper.WriteMetric(*this, metric);
@@ -224,9 +188,9 @@ void IMetric::GetBody(std::vector<uint8_t> &dest) const {
   metric.SerializeToArray(dest.data(),static_cast<int>(body_size));
 }
 
-std::string IMetric::DebugString() const {
+std::string Metric::DebugString() const {
   Payload_Metric metric;
-  IPayload payload;
+  Payload payload;
   PayloadHelper helper(payload);
   helper.WriteAllMetrics(true);
   {
@@ -236,27 +200,27 @@ std::string IMetric::DebugString() const {
   return metric.DebugString();
 }
 
-void IMetric::AddProperty(const MetricProperty &property) {
+void Metric::AddProperty(const MetricProperty &property) {
   std::scoped_lock lock(metric_mutex_);
-  auto exist = property_list_.find(property.key);
+  auto exist = property_list_.find(property.Key());
   if (exist == property_list_.end()) {
-    property_list_.emplace(property.key,property);
+    property_list_.emplace(property.Key(),property);
   } else {
     exist->second = property;
   }
 }
-MetricProperty* IMetric::CreateProperty(const std::string& key) {
+MetricProperty* Metric::CreateProperty(const std::string& key) {
   std::scoped_lock lock(metric_mutex_);
   if (const auto exist = property_list_.find(key);
       exist == property_list_.cend()) {
     MetricProperty temp;
-    temp.key = key;
+    temp.Key(key);
     property_list_.emplace(key, temp);
   }
   return GetProperty(key);
 }
 
-MetricProperty *IMetric::GetProperty(const std::string &key) {
+MetricProperty *Metric::GetProperty(const std::string &key) {
   std::scoped_lock lock(metric_mutex_);
   if (auto exist = property_list_.find(key);
       exist != property_list_.end()) {
@@ -265,7 +229,7 @@ MetricProperty *IMetric::GetProperty(const std::string &key) {
   return nullptr;
 }
 
-const MetricProperty *IMetric::GetProperty(const std::string &key) const {
+const MetricProperty *Metric::GetProperty(const std::string &key) const {
   std::scoped_lock lock(metric_mutex_);
   if (const auto exist = property_list_.find(key);
       exist != property_list_.cend()) {
@@ -274,7 +238,7 @@ const MetricProperty *IMetric::GetProperty(const std::string &key) const {
   return nullptr;
 }
 
-void IMetric::DeleteProperty(const std::string &key) {
+void Metric::DeleteProperty(const std::string &key) {
   std::scoped_lock lock(metric_mutex_);
   auto itr = property_list_.find(key);
   if (itr != property_list_.end()) {
@@ -282,21 +246,19 @@ void IMetric::DeleteProperty(const std::string &key) {
   }
 }
 
-void IMetric::Unit(const std::string &name) {
-  MetricProperty prop;
-  prop.key = "unit";
-  prop.value = name;
+void Metric::Unit(const std::string &name) {
+  MetricProperty prop("unit", name);
   std::scoped_lock lock(metric_mutex_);
   AddProperty(prop);
 }
 
-std::string IMetric::Unit() const {
+std::string Metric::Unit() const {
   std::scoped_lock lock(metric_mutex_);
   if (const auto exist = property_list_.find("unit");
       exist != property_list_.cend() ) {
     const auto& prop = exist->second;
     try {
-      return prop.value;
+      return prop.Value<std::string>();
     } catch (const std::exception&) {
       return {};
     }
@@ -304,7 +266,7 @@ std::string IMetric::Unit() const {
   return {};
 }
 
-std::string IMetric::GetMqttString() const {
+std::string Metric::GetMqttString() const {
   const auto unit = Unit();
   std::ostringstream text;
   if (!is_null_) {
@@ -316,32 +278,32 @@ std::string IMetric::GetMqttString() const {
   return text.str();
 }
 
-void IMetric::OnUpdate() {
+void Metric::OnUpdate() {
   if (on_update_) {
     on_update_();
   }
 }
 
-void IMetric::Publish() {
+void Metric::Publish() {
   if (on_publish_) {
     on_publish_(*this);
   }
 }
 
-MetricMetaData *IMetric::CreateMetaData() {
+MetricMetadata *Metric::CreateMetaData() {
   std::scoped_lock lock(metric_mutex_);
   if (!meta_data_) {
-    meta_data_ = std::make_unique<MetricMetaData>();
+    meta_data_ = std::make_unique<MetricMetadata>();
   }
   return meta_data_.get();
 }
 
-MetricMetaData *IMetric::GetMetaData() {
+MetricMetadata *Metric::GetMetaData() {
   std::scoped_lock lock(metric_mutex_);
   return meta_data_.get();
 }
 
-const MetricMetaData *IMetric::GetMetaData() const {
+const MetricMetadata *Metric::GetMetaData() const {
   std::scoped_lock lock(metric_mutex_);
   return meta_data_.get();
 }

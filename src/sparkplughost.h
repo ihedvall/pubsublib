@@ -15,6 +15,7 @@ namespace pub_sub {
 class SparkplugHost : public SparkplugNode {
  public:
   SparkplugHost();
+  explicit SparkplugHost(const std::string& host_name);
   ~SparkplugHost() override;
 
   bool Start() override; ///< Starts the working thread.
@@ -23,7 +24,6 @@ class SparkplugHost : public SparkplugNode {
   [[nodiscard]] bool IsOnline() const override;
   [[nodiscard]] bool IsOffline() const override;
 
-
  protected:
   bool SendConnect() override;
  private:
@@ -31,29 +31,31 @@ class SparkplugHost : public SparkplugNode {
   enum class WorkState {
     Idle,             ///< Initial state, try to connect periodically
     WaitOnConnect,    ///< Wait on connect
-    WaitOnline,       ///< Handle subscription values
     Online,
-    WaitOffline,
     Offline,
     WaitOnDisconnect
   };
   std::atomic<WorkState> work_state_ = WorkState::Idle;
   std::atomic<bool> stop_work_task_ = true;
+  uint64_t start_time_ = 0; ///< Start time (ms) of the host. Set by Start()
+  uint64_t host_timer_ = 0; ///< The host timer is used by the thread
 
-  ITopic* CreateStateTopic();
+  void CreateStateTopic();
+  void AddDefaultMetrics();
+
+  void HostTask();
+  void PublishState(bool online);
+  void DoIdle();
+  void DoWaitOnConnect();
+  void DoOnline();
+  void DoOffline();
+  void DoWaitOnDisconnect();
+
 
   [[nodiscard]] IPubSubClient* CreateDevice(const std::string& device_name) override;
   void DeleteDevice(const std::string& device_name) override;
-
   [[nodiscard]] IPubSubClient* GetDevice(const std::string& device_name) override;
   [[nodiscard]] const IPubSubClient* GetDevice(const std::string& device_name) const override;
-
-  uint64_t start_time_ = 0;
-  void HostTask();
-  void PublishState(bool online);
-
-
-
 
 
 };

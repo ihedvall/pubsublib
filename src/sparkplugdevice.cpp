@@ -43,7 +43,7 @@ bool SparkplugDevice::IsOffline() const {
   return device_state_ == DeviceState::Offline;
 }
 
-ITopic *SparkplugDevice::AddMetric(const std::shared_ptr<IMetric> &value) {
+ITopic *SparkplugDevice::AddMetric(const std::shared_ptr<Metric> &value) {
   // Add the metric to this device DBIRTH
   auto* topic = GetTopicByMessageType("DBIRTH");
   if (topic != nullptr) {

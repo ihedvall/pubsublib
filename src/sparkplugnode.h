@@ -30,7 +30,7 @@ class SparkplugNode : public IPubSubClient {
   [[nodiscard]] bool IsOffline() const override;
 
   ITopic* CreateTopic() override;
-  ITopic* AddMetric(const std::shared_ptr<IMetric>& value) override;
+  ITopic* AddMetric(const std::shared_ptr<Metric>& value) override;
   [[nodiscard]] bool IsConnected() const override;
 
   [[nodiscard]] const std::string& ServerUri() const { return server_uri_; }
@@ -44,12 +44,6 @@ class SparkplugNode : public IPubSubClient {
   void SetDelivered() { delivered_ = true; }
   bool IsDelivered();
 
-  [[nodiscard]] IPubSubClient* CreateDevice(const std::string& device_name) override;
-  void DeleteDevice(const std::string& device_name) override;
-
-  [[nodiscard]] IPubSubClient* GetDevice(const std::string& device_name) override;
-  [[nodiscard]] const IPubSubClient* GetDevice(const std::string& device_name) const override;
-
  protected:
   MQTTAsync handle_ = nullptr;
   std::unique_ptr<util::log::IListen> listen_;
@@ -61,7 +55,7 @@ class SparkplugNode : public IPubSubClient {
 
   std::string server_uri_;
   int server_version_ = 0;
-  int server_session_ = -1; ///< Indicate if connected -1 = Unknown, 0/1 = Not Connected/Connected
+  int server_session_ = -1;
 
   virtual bool SendConnect();
   void StartSubscription();
@@ -85,6 +79,11 @@ class SparkplugNode : public IPubSubClient {
   static void OnSubscribe(void *context, MQTTAsync_successData *response);
   static void OnDisconnect(void* context, MQTTAsync_successData* response);
   static void OnDisconnectFailure(void* context, MQTTAsync_failureData* response);
+
+  [[nodiscard]] IPubSubClient* CreateDevice(const std::string& device_name) override;
+  void DeleteDevice(const std::string& device_name) override;
+  [[nodiscard]] IPubSubClient* GetDevice(const std::string& device_name) override;
+  [[nodiscard]] const IPubSubClient* GetDevice(const std::string& device_name) const override;
  private:
   using DeviceList =  std::map<std::string, std::unique_ptr<SparkplugDevice>, util::string::IgnoreCase>;
 
@@ -102,6 +101,11 @@ class SparkplugNode : public IPubSubClient {
   uint64_t node_timer_ = SparkplugHelper::NowMs();
   DeviceList device_list_; ///< Sparkplug devices in this node
 
+  using NodeList = std::vector< std::unique_ptr<IPubSubClient> >;
+  NodeList node_list_; ///< List of external host and nodes
+
+  SparkplugHost* GetHost(const std::string& host_id);
+  SparkplugNode* GetNode(const std::string& group_id, const std::string& node_id);
 
   bool CreateNode();
   void CreateNodeDeathTopic();
@@ -116,6 +120,27 @@ class SparkplugNode : public IPubSubClient {
   void DoOnline();
   void DoWaitOnDisconnect();
 
+  void HandleStateMessage(const std::string& host_name, const MQTTAsync_message& message);
+
+  void HandleNodeBirthMessage(const std::string& group_name, const std::string& node_name,
+                              const MQTTAsync_message& message);
+  void HandleNodeDeathMessage(const std::string& group_name, const std::string& node_name,
+                              const MQTTAsync_message& message);
+  void HandleNodeCommandMessage(const std::string& group_name, const std::string& node_name,
+                                const MQTTAsync_message& message);
+  void HandleNodeDataMessage(const std::string& group_name, const std::string& node_name,
+                                const MQTTAsync_message& message);
+
+  void HandleDeviceBirthMessage(const std::string& group_name, const std::string& node_name,
+                              const std::string& device_name, const MQTTAsync_message& message);
+  void HandleDeviceDeathMessage(const std::string& group_name, const std::string& node_name,
+                                const std::string& device_name, const MQTTAsync_message& message);
+  void HandleDeviceCommandMessage(const std::string& group_name, const std::string& node_name,
+                                const std::string& device_name, const MQTTAsync_message& message);
+  void HandleDeviceDataMessage(const std::string& group_name, const std::string& node_name,
+                                  const std::string& device_name, const MQTTAsync_message& message);
+
+  void AssignAliasNumbers();
 };
 
 } // pub_sub

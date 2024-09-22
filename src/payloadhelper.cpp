@@ -158,16 +158,16 @@ pub_sub::MetricType ProtobufDataTypeToMetricType(uint32_t pb_type) {
 }
 
 namespace pub_sub {
-PayloadHelper::PayloadHelper(IPayload &source)
+PayloadHelper::PayloadHelper(Payload &source)
     : source_(source) {
 }
 
 void PayloadHelper::WriteProtobuf() {
-  // Note that dst payload is the protobuf payload not IPayload.
-  // Source is the IPayload and at the end the protobuf dest shall
+  // Note that dst payload is the protobuf payload not Payload.
+  // Source is the Payload and at the end the protobuf dest shall
   // be serialized to the source body (data bytes).
   try {
-    Payload pb_payload; // Note not a IPayload is a protobuf payload
+    org::eclipse::tahu::protobuf::Payload pb_payload; // Note not a Payload is a protobuf payload
     pb_payload.set_timestamp(source_.Timestamp());
     auto seq_no = source_.SequenceNumber();
     pb_payload.set_seq(seq_no);
@@ -217,7 +217,7 @@ void PayloadHelper::WriteProtobuf() {
   }
 }
 
-void PayloadHelper::WriteMetric(const IMetric &metric, Payload_Metric &dest) {
+void PayloadHelper::WriteMetric(const Metric &metric, Payload_Metric &dest) const {
   try {
     dest.set_name(metric.Name()); // Include name for tracing purpose
     dest.set_alias(metric.Alias());
@@ -293,10 +293,10 @@ void PayloadHelper::WritePropertySet(const MetricPropertyList &property_list, Pa
       if (pb_property_value == nullptr) {
         throw std::runtime_error("Failed to create a property value");
       }
-      pb_property_value->set_type(static_cast<DataType>(prop.type));
-      pb_property_value->set_is_null(prop.is_null);
+      pb_property_value->set_type(static_cast<DataType>(prop.Type()));
+      pb_property_value->set_is_null(prop.IsNull());
 
-      switch (prop.type) {
+      switch (prop.Type()) {
         case MetricType::Int8:
         case MetricType::Int16:
         case MetricType::Int32:
@@ -333,7 +333,7 @@ void PayloadHelper::WritePropertySet(const MetricPropertyList &property_list, Pa
         case MetricType::String:
         case MetricType::Unknown:
         default:
-          pb_property_value->set_string_value(prop.value);
+          pb_property_value->set_string_value(prop.Value<std::string>());
           break;
       }
     }
@@ -344,13 +344,13 @@ void PayloadHelper::WritePropertySet(const MetricPropertyList &property_list, Pa
 
 }
 void PayloadHelper::ParseProtobuf() {
-  // The IPayload body (data bytes) should hold the protobuf data
+  // The Payload body (data bytes) should hold the protobuf data
   try {
     const auto &body = source_.Body();
     if (body.empty()) {
       return;
     }
-    Payload pb_payload;
+    org::eclipse::tahu::protobuf::Payload pb_payload;
     bool parse = pb_payload.ParseFromArray(body.data(), static_cast<int>(body.size()));
     if (!parse) {
       throw std::runtime_error("Parsing error.");
@@ -375,7 +375,7 @@ void PayloadHelper::ParseProtobuf() {
     }
     // Read in the metrics
     for (const auto &pb_metric : pb_payload.metrics()) {
-      std::shared_ptr<IMetric> metric;
+      std::shared_ptr<Metric> metric;
       std::string name;
       if (pb_metric.has_name()) {
         name = pb_metric.name();
@@ -408,7 +408,7 @@ void PayloadHelper::ParseProtobuf() {
   }
 }
 
-void PayloadHelper::ParseMetric(const Payload_Metric &pb_metric, IMetric &metric) {
+void PayloadHelper::ParseMetric(const Payload_Metric &pb_metric, Metric &metric) {
   try {
     if (metric.Name().empty() && pb_metric.has_name()) {
       metric.Name(pb_metric.name());
@@ -482,7 +482,7 @@ void PayloadHelper::ParseMetric(const Payload_Metric &pb_metric, IMetric &metric
             throw std::runtime_error("Failed to create metric property");
           }
           if (pb_property_value.has_type()) {
-            property->type = ProtobufDataTypeToMetricType(pb_property_value.type());
+            property->Type( ProtobufDataTypeToMetricType(pb_property_value.type()) );
           }
         }
         ParsePropertyValue(pb_property_value, *property);
@@ -493,31 +493,31 @@ void PayloadHelper::ParseMetric(const Payload_Metric &pb_metric, IMetric &metric
   }
 }
 
-void PayloadHelper::ParseMetaData(const Payload_MetaData &pb_meta_data, MetricMetaData &meta_data) {
+void PayloadHelper::ParseMetaData(const Payload_MetaData &pb_meta_data, MetricMetadata &meta_data) {
   try {
     if (pb_meta_data.has_is_multi_part()) {
-      meta_data.is_multi_part = pb_meta_data.is_multi_part();
+      meta_data.IsMultiPart( pb_meta_data.is_multi_part());
     }
     if (pb_meta_data.has_content_type()) {
-      meta_data.content_type = pb_meta_data.content_type();
+      meta_data.ContentType( pb_meta_data.content_type());
     }
     if (pb_meta_data.has_size()) {
-      meta_data.size = pb_meta_data.size();
+      meta_data.Size( pb_meta_data.size() );
     }
     if (pb_meta_data.has_seq()) {
-      meta_data.size = pb_meta_data.seq();
+      meta_data.SequenceNumber( pb_meta_data.seq() );
     }
     if (pb_meta_data.has_file_name()) {
-      meta_data.file_name = pb_meta_data.file_name();
+      meta_data.FileName(pb_meta_data.file_name());
     }
     if (pb_meta_data.has_file_type()) {
-      meta_data.file_type = pb_meta_data.file_type();
+      meta_data.FileType( pb_meta_data.file_type() );
     }
     if (pb_meta_data.has_md5()) {
-      meta_data.file_type = pb_meta_data.md5();
+      meta_data.Md5( pb_meta_data.md5() );
     }
     if (pb_meta_data.has_description()) {
-      meta_data.file_type = pb_meta_data.description();
+      meta_data.Description( pb_meta_data.description() );
     }
   } catch (std::exception &err) {
     LOG_ERROR() << "Parsing meta data error. Error: " << err.what();
@@ -526,52 +526,52 @@ void PayloadHelper::ParseMetaData(const Payload_MetaData &pb_meta_data, MetricMe
 
 void PayloadHelper::ParsePropertyValue(const Payload_PropertyValue &pb_property_value, MetricProperty &property) {
   try {
-    property.is_null = pb_property_value.has_is_null() ? pb_property_value.is_null() : false;
+    property.IsNull( pb_property_value.has_is_null() ? pb_property_value.is_null() : false);
     if (pb_property_value.has_int_value()) {
-      switch (property.type) {
+      switch (property.Type()) {
         case MetricType::Int8:
         case MetricType::Int16:
         case MetricType::Int32:
         case MetricType::Int64:
         case MetricType::Float:
         case MetricType::Double:
-          property.value = std::to_string(static_cast<int32_t>(pb_property_value.int_value()));
+          property.Value( static_cast<int32_t>(pb_property_value.int_value()) );
           break;
 
         default:
-          property.value = std::to_string(pb_property_value.int_value());
+          property.Value(pb_property_value.int_value());
           break;
       }
     } else if (pb_property_value.has_long_value()) {
-      switch (property.type) {
+      switch (property.Type()) {
         case MetricType::Int8:
         case MetricType::Int16:
         case MetricType::Int32:
         case MetricType::Int64:
         case MetricType::Float:
         case MetricType::Double:
-          property.value = std::to_string(static_cast<int64_t>(pb_property_value.long_value()));
+          property.Value( static_cast<int64_t>(pb_property_value.long_value()) );
           break;
 
         default:
-          property.value = std::to_string(pb_property_value.long_value());
+          property.Value( pb_property_value.long_value() );
           break;
       }
     } else if (pb_property_value.has_float_value()) {
-      property.value = std::to_string(pb_property_value.float_value());
+      property.Value( pb_property_value.float_value() );
     } else if (pb_property_value.has_double_value()) {
-      property.value = std::to_string(pb_property_value.double_value());
+      property.Value( pb_property_value.double_value() );
     } else if (pb_property_value.has_boolean_value()) {
-      property.value = pb_property_value.boolean_value() ? "true" : "false";
+      property.Value( pb_property_value.boolean_value() );
     } else if (pb_property_value.has_string_value()) {
-      property.value = pb_property_value.string_value();
+      property.Value( pb_property_value.string_value() );
     } else if (pb_property_value.has_propertyset_value()) {
       const auto &pb_property_set = pb_property_value.propertyset_value();
-      if (property.prop_list.empty()) {
-        property.value.clear();
-        property.prop_list.resize(1, {});
+      if (property.PropertyArray().empty()) {
+        property.Value("");
+        property.PropertyArray().resize(1, {});
       }
-      auto &prop_map = property.prop_list[0];
+      auto &prop_map = property.PropertyArray()[0];
       ParsePropertySet(pb_property_set, prop_map);
     }
   } catch (const std::exception& err) {
@@ -590,7 +590,7 @@ void PayloadHelper::ParsePropertySet(const Payload_PropertySet &pb_property_set,
       auto sub_exist = property_list.find(sub_key);
       if (sub_exist == property_list.end()) {
         MetricProperty sub_prop;
-        sub_prop.key = sub_key;
+        sub_prop.Key( sub_key);
         ParsePropertyValue(sub_value, sub_prop);
         property_list.emplace(sub_key, sub_prop);
       } else {

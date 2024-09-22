@@ -4,6 +4,7 @@
  */
 
 #pragma once
+#include "pubsub/metric.h"
 #include "pubsub/ipubsubclient.h"
 
 namespace pub_sub {
@@ -30,8 +31,8 @@ class PubSubFactory {
   static std::unique_ptr<IPubSubClient> CreatePubSubClient(PubSubType type);
 
 
-  static std::shared_ptr<IMetric> CreateValue(const std::string_view& name);
-  static std::shared_ptr<IMetric> CreateValue(const std::string& name);
+  static std::shared_ptr<Metric> CreateMetric(const std::string_view& name);
+  static std::shared_ptr<Metric> CreateMetric(const std::string& name);
 };
 
 } // pub_sub

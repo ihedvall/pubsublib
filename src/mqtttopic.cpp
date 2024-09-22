@@ -12,10 +12,10 @@ MqttTopic::MqttTopic(MqttClient &parent)
 }
 
 void MqttTopic::DoPublish() {
-  lrv_ = Payload<std::vector<uint8_t>>();
+  lrv_ = PayloadBody<std::vector<uint8_t>>();
   auto& listen = parent_.Listen();
   if (listen.IsActive() && listen.LogLevel() != 2) {
-    const auto payload = Payload<std::string>();
+    const auto payload = PayloadBody<std::string>();
     listen.ListenText("Publish: %s:%s", Topic().c_str(), payload.c_str());
   }
 
@@ -38,10 +38,10 @@ void MqttTopic::DoPublish() {
 }
 
 void MqttTopic::DoSubscribe() {
-  lrv_ = Payload<std::vector<uint8_t>>();
+  lrv_ = PayloadBody<std::vector<uint8_t>>();
   auto& listen = parent_.Listen();
   if (listen.IsActive() && listen.LogLevel() != 2) {
-    const auto payload = Payload<std::string>();
+    const auto payload = PayloadBody<std::string>();
     listen.ListenText("Subscribe: %s", Topic().c_str());
   }
 
@@ -69,7 +69,7 @@ void MqttTopic::OnSendFailure(void *context, MQTTAsync_failureData *response) {
     }
     auto& listen = topic->parent_.Listen();
     if (listen.IsActive() && response != nullptr) {
-      const auto payload = topic->Payload<std::string>();
+      const auto payload = topic->PayloadBody<std::string>();
       listen.ListenText("Publish Failure: %s:%s, Error: %s",
                         topic->Topic().c_str(), payload.c_str(),
                         MQTTAsync_strerror(response->code));
@@ -89,7 +89,7 @@ void MqttTopic::OnSend(void *context, MQTTAsync_successData *response) {
     }
     auto& listen = topic->parent_.Listen();
     if (listen.IsActive() && listen.LogLevel() == 3) {
-      const auto payload = topic->Payload<std::string>();
+      const auto payload = topic->PayloadBody<std::string>();
       listen.ListenText("Publish Sent: %s:%s",
                         topic->Topic().c_str(), payload.c_str() );
     }

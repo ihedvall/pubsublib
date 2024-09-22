@@ -10,8 +10,8 @@
 #include <cstdint>
 #include <mutex>
 #include <memory>
-#include "pubsub/ipayload.h"
-#include "pubsub/imetric.h"
+#include "pubsub/payload.h"
+#include "pubsub/metric.h"
 
 namespace pub_sub {
 
@@ -101,12 +101,12 @@ class ITopic {
   [[nodiscard]] bool Updated() const;
 
   template <typename T>
-  void Payload(const T& payload);
+  void PayloadBody(const T& payload);
 
   template<typename T>
-  [[nodiscard]] T Payload() const;
+  [[nodiscard]] T PayloadBody() const;
 
-  IPayload& GetPayload() {
+  Payload& GetPayload() {
     return payload_;
   }
   virtual void DoPublish() = 0;
@@ -114,15 +114,15 @@ class ITopic {
 
   [[nodiscard]] bool IsWildcard() const;
 
-  void Value(const std::shared_ptr<IMetric>& value) {
+  void Value(const std::shared_ptr<Metric>& value) {
     value_ = value;
   }
-  [[nodiscard]] std::shared_ptr<IMetric>& Value() {
+  [[nodiscard]] std::shared_ptr<Metric>& Value() {
     return value_;
   }
 
-  std::shared_ptr<IMetric> CreateMetric(const std::string& name);
-  std::shared_ptr<IMetric> GetMetric(const std::string& name) const;
+  std::shared_ptr<Metric> CreateMetric(const std::string& name);
+  std::shared_ptr<Metric> GetMetric(const std::string& name) const;
 
   virtual void ParsePayloadData() = 0;
 
@@ -132,7 +132,7 @@ class ITopic {
   mutable std::recursive_mutex topic_mutex_;
   bool       updated_ = false;
   uint64_t   update_counter_ = 0;
-  std::shared_ptr<IMetric> value_; ///< Reference to a user value object.
+  std::shared_ptr<Metric> value_; ///< Reference to a user value object.
 
   virtual void UpdatePayload(const std::vector<uint8_t>& payload);
 
@@ -146,7 +146,7 @@ class ITopic {
   std::string node_id_;
   std::string device_id_;
 
-  IPayload payload_; ///< MQTT topic data.
+  Payload payload_; ///< MQTT topic data.
 
   bool publish_ = false;
   QualityOfService qos_ = QualityOfService::Qos0;
@@ -156,34 +156,30 @@ class ITopic {
 };
 
 template<typename T>
-void ITopic::Payload(const T& payload) {
+void ITopic::PayloadBody(const T& payload) {
   if (content_type_.empty()) {
     content_type_ = "text/plain";
   }
-
   std::ostringstream text;
   text << payload;
-  std::vector<uint8_t> temp(text.str().size(),0);
-  memcpy_s(temp.data(), temp.size(), text.str().data(), text.str().size());
-
-  Payload(temp);
+  payload_.StringToBody(text.str());
 }
 
 
 template<>
-void ITopic::Payload(const std::vector<uint8_t>& payload);
+void ITopic::PayloadBody(const std::vector<uint8_t>& payload);
 
 template<>
-void ITopic::Payload(const bool& payload);
+void ITopic::PayloadBody(const bool& payload);
 
 template<>
-void ITopic::Payload(const float& payload);
+void ITopic::PayloadBody(const float& payload);
 
 template<>
-void ITopic::Payload(const double& payload);
+void ITopic::PayloadBody(const double& payload);
 
 template<typename T>
-T ITopic::Payload() const {
+T ITopic::PayloadBody() const {
   std::lock_guard lock(topic_mutex_);
   T value = {};
   try {
@@ -198,9 +194,9 @@ T ITopic::Payload() const {
 }
 
 template<>
-std::vector<uint8_t> ITopic::Payload() const;
+std::vector<uint8_t> ITopic::PayloadBody() const;
 
 template<>
-bool ITopic::Payload() const;
+bool ITopic::PayloadBody() const;
 
 } // end namespace util::mqtt

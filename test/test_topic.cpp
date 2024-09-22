@@ -5,6 +5,7 @@
 #include <string_view>
 
 #include <gtest/gtest.h>
+#include <util/timestamp.h>
 #include "pubsub/itopic.h"
 #include "pubsub/pubsubfactory.h"
 

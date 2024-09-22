@@ -5,7 +5,7 @@
 <meta http-equiv="X-UA-Compatible" content="IE=11"/>
 <meta name="generator" content="Doxygen 1.9.8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>PubSubLib: pub_sub::IPayload Class Reference</title>
+<title>PubSubLib: pub_sub::Payload Class Reference</title>
 <link href="tabs.css" rel="stylesheet" type="text/css"/>
 <script type="text/javascript" src="jquery.js"></script>
 <script type="text/javascript" src="dynsections.js"></script>
@@ -71,7 +71,7 @@ $(function() {
 
 <div id="nav-path" class="navpath">
   <ul>
-<li class="navelem"><b>pub_sub</b></li><li class="navelem"><a class="el" href="classpub__sub_1_1_i_payload.html">IPayload</a></li>  </ul>
+<li class="navelem"><b>pub_sub</b></li><li class="navelem"><a class="el" href="classpub__sub_1_1_i_payload.html">Payload</a></li>  </ul>
 </div>
 </div><!-- top -->
 <div class="header">
@@ -80,7 +80,7 @@ $(function() {
 <a href="#pub-methods">Public Member Functions</a> &#124;
 <a href="#pro-attribs">Protected Attributes</a> &#124;
 <a href="classpub__sub_1_1_i_payload-members.html">List of all members</a>  </div>
-  <div class="headertitle"><div class="title">pub_sub::IPayload Class Reference</div></div>
+  <div class="headertitle"><div class="title">pub_sub::Payload Class Reference</div></div>
 </div><!--header-->
 <div class="contents">
 <table class="memberdecls">
@@ -90,7 +90,7 @@ Public Types</h2></td></tr>
 using&#160;</td><td class="memItemRight" valign="bottom"><b>BodyList</b> = std::vector&lt; uint8_t &gt;</td></tr>
 <tr class="separator:a42c05e6ac98b6849cfb1326224a09b00"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:afcdf2ef3aab6173b5192a26fa934cb0d" id="r_afcdf2ef3aab6173b5192a26fa934cb0d"><td class="memItemLeft" align="right" valign="top"><a id="afcdf2ef3aab6173b5192a26fa934cb0d" name="afcdf2ef3aab6173b5192a26fa934cb0d"></a>
-using&#160;</td><td class="memItemRight" valign="bottom"><b>MetricList</b> = std::map&lt; uint64_t, std::unique_ptr&lt; <a class="el" href="classpub__sub_1_1_i_metric.html">IMetric</a> &gt; &gt;</td></tr>
+using&#160;</td><td class="memItemRight" valign="bottom"><b>MetricList</b> = std::map&lt; uint64_t, std::unique_ptr&lt; <a class="el" href="classpub__sub_1_1_i_metric.html">Metric</a> &gt; &gt;</td></tr>
 <tr class="separator:afcdf2ef3aab6173b5192a26fa934cb0d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="pub-methods" name="pub-methods"></a>
@@ -123,13 +123,13 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>Body</b> (const BodyL
 const BodyList &amp;&#160;</td><td class="memItemRight" valign="bottom"><b>Body</b> () const</td></tr>
 <tr class="separator:afa87e2d60dd3a34b12eeac0474a66bd0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af3200833e14b3e33fdb6618357fed780" id="r_af3200833e14b3e33fdb6618357fed780"><td class="memItemLeft" align="right" valign="top"><a id="af3200833e14b3e33fdb6618357fed780" name="af3200833e14b3e33fdb6618357fed780"></a>
-void&#160;</td><td class="memItemRight" valign="bottom"><b>AddMetric</b> (std::unique_ptr&lt; <a class="el" href="classpub__sub_1_1_i_metric.html">IMetric</a> &gt; &amp;metric)</td></tr>
+void&#160;</td><td class="memItemRight" valign="bottom"><b>AddMetric</b> (std::unique_ptr&lt; <a class="el" href="classpub__sub_1_1_i_metric.html">Metric</a> &gt; &amp;metric)</td></tr>
 <tr class="separator:af3200833e14b3e33fdb6618357fed780"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aed65abf79027f6434e9e9cb3ffc557b8" id="r_aed65abf79027f6434e9e9cb3ffc557b8"><td class="memItemLeft" align="right" valign="top"><a id="aed65abf79027f6434e9e9cb3ffc557b8" name="aed65abf79027f6434e9e9cb3ffc557b8"></a>
-<a class="el" href="classpub__sub_1_1_i_metric.html">IMetric</a> *&#160;</td><td class="memItemRight" valign="bottom"><b>GetMetric</b> (uint64_t alias)</td></tr>
+<a class="el" href="classpub__sub_1_1_i_metric.html">Metric</a> *&#160;</td><td class="memItemRight" valign="bottom"><b>GetMetric</b> (uint64_t alias)</td></tr>
 <tr class="separator:aed65abf79027f6434e9e9cb3ffc557b8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a12bf5cd04be5e29a4096a15c94196f7c" id="r_a12bf5cd04be5e29a4096a15c94196f7c"><td class="memItemLeft" align="right" valign="top"><a id="a12bf5cd04be5e29a4096a15c94196f7c" name="a12bf5cd04be5e29a4096a15c94196f7c"></a>
-<a class="el" href="classpub__sub_1_1_i_metric.html">IMetric</a> *&#160;</td><td class="memItemRight" valign="bottom"><b>GetMetric</b> (const std::string &amp;name)</td></tr>
+<a class="el" href="classpub__sub_1_1_i_metric.html">Metric</a> *&#160;</td><td class="memItemRight" valign="bottom"><b>GetMetric</b> (const std::string &amp;name)</td></tr>
 <tr class="separator:a12bf5cd04be5e29a4096a15c94196f7c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aaaa54a1f13782128c7a2f274f5e2021b" id="r_aaaa54a1f13782128c7a2f274f5e2021b"><td class="memItemLeft" align="right" valign="top"><a id="aaaa54a1f13782128c7a2f274f5e2021b" name="aaaa54a1f13782128c7a2f274f5e2021b"></a>
 const MetricList &amp;&#160;</td><td class="memItemRight" valign="bottom"><b>Metrics</b> () const</td></tr>

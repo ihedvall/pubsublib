@@ -64,7 +64,7 @@ const std::string &ITopic::Topic() const {
 }
 
 template<>
-void ITopic::Payload(const std::vector<uint8_t>& payload)
+void ITopic::PayloadBody(const std::vector<uint8_t>& payload)
 {  if (content_type_.empty()) {
     content_type_ = "application/octet-stream";
   }
@@ -78,30 +78,30 @@ void ITopic::Payload(const std::vector<uint8_t>& payload)
 }
 
 template<>
-void ITopic::Payload(const bool& payload)
+void ITopic::PayloadBody(const bool& payload)
 {
-  std::string temp = payload ? "1": "0";
-  Payload(temp);
+  const std::string temp = payload ? "1": "0";
+  payload_.StringToBody(temp);
 }
 
 template<>
-void ITopic::Payload(const float& payload) {
-  Payload(util::string::FloatToString(payload));
+void ITopic::PayloadBody(const float& payload) {
+  payload_.StringToBody(util::string::FloatToString(payload));
 }
 
 template<>
-void ITopic::Payload(const double& payload) {
-  Payload(util::string::DoubleToString(payload));
+void ITopic::PayloadBody(const double& payload) {
+  payload_.StringToBody(util::string::DoubleToString(payload));
 }
 
 template<>
-std::vector<uint8_t> ITopic::Payload() const {
+std::vector<uint8_t> ITopic::PayloadBody() const {
   std::lock_guard lock(topic_mutex_);
   return payload_.Body();
 }
 
 template<>
-bool ITopic::Payload() const {
+bool ITopic::PayloadBody() const {
   std::lock_guard lock(topic_mutex_);
   const auto& body = payload_.Body();
   if (body.empty()) {
@@ -176,11 +176,11 @@ void ITopic::AssignLevelName(size_t level, const std::string &name) {
   }
 }
 
-std::shared_ptr<IMetric> ITopic::CreateMetric(const std::string &name) {
+std::shared_ptr<Metric> ITopic::CreateMetric(const std::string &name) {
   return payload_.CreateMetric(name);
 }
 
-std::shared_ptr<IMetric> ITopic::GetMetric(const std::string &name) const {
+std::shared_ptr<Metric> ITopic::GetMetric(const std::string &name) const {
   return payload_.GetMetric(name);
 }
 

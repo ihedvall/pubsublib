@@ -6,7 +6,6 @@
 #pragma once
 #include "mqttclient.h"
 
-
 namespace pub_sub {
     /**
      * @class DetectBroker

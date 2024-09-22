@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "pubsub/ipayload.h"
+#include "pubsub/payload.h"
 #include "sparkplug_b.pb.h"
 #include "payloadhelper.h"
 #include "boost/json.hpp"
@@ -14,7 +14,7 @@ using namespace boost::json;
 
 namespace pub_sub {
 
-void IPayload::Timestamp(uint64_t ms_since_1970, bool set_metrics) {
+void Payload::Timestamp(uint64_t ms_since_1970, bool set_metrics) {
   timestamp_ = ms_since_1970;
   // Both the payload and its metric have timestamps so the below
   // lines should not happen with Sparkplug B.
@@ -34,42 +34,42 @@ void IPayload::Timestamp(uint64_t ms_since_1970, bool set_metrics) {
   }
 }
 
-uint64_t IPayload::Timestamp() const {
+uint64_t Payload::Timestamp() const {
   const auto timestamp = GetMetric("timestamp");
   return timestamp ? timestamp->Value<uint64_t>() : timestamp_.load();
 }
 
-void IPayload::Uuid(const std::string &uuid) {
+void Payload::Uuid(const std::string &uuid) {
   std::scoped_lock lock(payload_mutex_);
   uuid_ = uuid;
 }
 
-std::string IPayload::Uuid() const {
+std::string Payload::Uuid() const {
   std::scoped_lock lock(payload_mutex_);
   return uuid_;
 }
 
-std::shared_ptr<IMetric> IPayload::GetMetric(uint64_t alias) const {
+std::shared_ptr<Metric> Payload::GetMetric(uint64_t alias) const {
   std::scoped_lock lock(payload_mutex_);
   auto itr = std::find_if(metric_list_.begin(), metric_list_.end(),
                           [&] (const auto& metric)->bool {
     return alias == metric.second->Alias();
   });
-  return itr == metric_list_.end() ? std::shared_ptr<IMetric>() : itr->second;
+  return itr == metric_list_.end() ? std::shared_ptr<Metric>() : itr->second;
 }
 
 
-std::shared_ptr<IMetric> IPayload::GetMetric(const std::string &name) const {
+std::shared_ptr<Metric> Payload::GetMetric(const std::string &name) const {
   std::scoped_lock lock(payload_mutex_);
   auto itr = metric_list_.find(name);
-  return itr == metric_list_.cend() ? std::shared_ptr<IMetric>() : itr->second;
+  return itr == metric_list_.cend() ? std::shared_ptr<Metric>() : itr->second;
 }
 
-const IPayload::MetricList &IPayload::Metrics() const {
+const Payload::MetricList &Payload::Metrics() const {
   return metric_list_;
 }
 
-void IPayload::DeleteMetrics(const std::string &name) {
+void Payload::DeleteMetrics(const std::string &name) {
   std::scoped_lock lock(payload_mutex_);
   auto itr = std::ranges::find_if(metric_list_, [&] (const auto& metric) {
     return util::string::IEquals(name, metric.second->Name());
@@ -79,7 +79,7 @@ void IPayload::DeleteMetrics(const std::string &name) {
   };
 }
 
-void IPayload::GenerateJson() {
+void Payload::GenerateJson() {
   const std::string json = MakeJsonString();
   std::vector<uint8_t> body(json.size(), 0);
   for (size_t index = 0; index < json.size(); ++index) {
@@ -88,27 +88,27 @@ void IPayload::GenerateJson() {
   Body(body);
 }
 
-void IPayload::GenerateProtobuf() {
+void Payload::GenerateProtobuf() {
   PayloadHelper helper(*this);
   std::scoped_lock lock(payload_mutex_);
   helper.WriteProtobuf();
 }
 
 
-std::shared_ptr<IMetric> IPayload::CreateMetric(const std::string &name) {
+std::shared_ptr<Metric> Payload::CreateMetric(const std::string &name) {
   auto exist = GetMetric(name);
   if (exist) {
     return exist;
   }
   {
     std::scoped_lock lock(payload_mutex_);
-    auto metric = std::make_shared<IMetric>(name);
+    auto metric = std::make_shared<Metric>(name);
     metric_list_.insert({name, std::move(metric)});
   }
   return GetMetric(name);
 }
 
- void IPayload::AddMetric(const std::shared_ptr<IMetric>& metric) {
+ void Payload::AddMetric(const std::shared_ptr<Metric>& metric) {
   if (!metric || metric->Name().empty()) {
     LOG_ERROR() << "Metric must have a name.";
     return;
@@ -126,7 +126,7 @@ std::shared_ptr<IMetric> IPayload::CreateMetric(const std::string &name) {
   }
 }
 
-std::string IPayload::MakeJsonString() const {
+std::string Payload::MakeJsonString() const {
   boost::json::object obj;
   std::scoped_lock lock(payload_mutex_);
   for (const auto& [name,metric] : metric_list_) {
@@ -173,7 +173,7 @@ std::string IPayload::MakeJsonString() const {
   return boost::json::serialize(obj);
 }
 
-std::string IPayload::BodyToString() const {
+std::string Payload::BodyToString() const {
   std::ostringstream temp;
 
   for (uint8_t data : body_) {
@@ -185,7 +185,7 @@ std::string IPayload::BodyToString() const {
   return temp.str();
 }
 
-void IPayload::StringToBody(const std::string &body_text) {
+void Payload::StringToBody(const std::string &body_text) {
   try {
     body_.resize(body_text.size(), 0);
     memcpy(body_.data(), body_text.data(), body_.size());
@@ -194,7 +194,7 @@ void IPayload::StringToBody(const std::string &body_text) {
   }
 }
 
-void IPayload::ParseSparkplugJson(bool create_metrics) {
+void Payload::ParseSparkplugJson(bool create_metrics) {
   try {
     const auto json = BodyToString();
     const auto json_val = parse(json);
@@ -279,7 +279,7 @@ void IPayload::ParseSparkplugJson(bool create_metrics) {
   }
 }
 
-void IPayload::ParseSparkplugProtobuf(bool create_metrics) {
+void Payload::ParseSparkplugProtobuf(bool create_metrics) {
   PayloadHelper helper(*this);
   std::scoped_lock lock(payload_mutex_);
   helper.ParseProtobuf();

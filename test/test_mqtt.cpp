@@ -146,7 +146,7 @@ TEST_F(TestMqtt, SharedPtr) {
 
 TEST_F(TestMqtt, IValue) {
   constexpr std::string_view value_name = "Value1";
-  auto value = PubSubFactory::CreateValue(value_name);
+  auto value = PubSubFactory::CreateMetric(value_name);
   ASSERT_TRUE(value);
   EXPECT_EQ(value->Name(), value_name);
 
@@ -188,7 +188,7 @@ TEST_F(TestMqtt, IValue) {
   EXPECT_EQ(value->Value<int>(),0);
   EXPECT_EQ(value->Value<std::string>(),"0");
 
-  auto unit_value = PubSubFactory::CreateValue(value_name);
+  auto unit_value = PubSubFactory::CreateMetric(value_name);
   unit_value->Type(MetricType::Double);
   EXPECT_EQ(unit_value->Type(), MetricType::Double);
   EXPECT_TRUE(unit_value->Unit().empty());
@@ -210,13 +210,13 @@ TEST_F(TestMqtt, Mqtt3Client) { // NOLINT
   publisher->Name("Pub");
 
   constexpr std::string_view string_name = "ihedvall/test/pubsub/string_value";
-  auto write_value = PubSubFactory::CreateValue(string_name);
+  auto write_value = PubSubFactory::CreateMetric(string_name);
   write_value->Type(MetricType::String);
   write_value->Value("StringVal"); // Initial value
 
   auto publish = publisher->AddMetric(write_value);
 
-  publish->Payload(kPayLoad.data());
+  publish->PayloadBody(kPayLoad.data());
   publish->Qos(QualityOfService::Qos1);
   publish->Retained(true);
   publish->Publish(true);
@@ -230,7 +230,7 @@ TEST_F(TestMqtt, Mqtt3Client) { // NOLINT
   subscriber->Name("Sub");
 
   bool value_read = false;
-  auto read_value = PubSubFactory::CreateValue(string_name);
+  auto read_value = PubSubFactory::CreateMetric(string_name);
   read_value->Type(MetricType::String);
   read_value->SetOnUpdate([&] () -> void {
     LOG_DEBUG() << "Value: " << read_value->Value<std::string>();
@@ -284,9 +284,9 @@ TEST_F(TestMqtt, Mqtt3Client) { // NOLINT
     std::this_thread::sleep_for(1ms);
   }
   EXPECT_FALSE(publisher->IsConnected());
-  EXPECT_FALSE(publisher->IsFaulty());
+
   EXPECT_FALSE(subscriber->IsConnected());
-  EXPECT_FALSE(subscriber->IsFaulty());
+
 
 
 }

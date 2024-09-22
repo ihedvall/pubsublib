@@ -6,11 +6,11 @@
 #include <gtest/gtest.h>
 #include <util/timestamp.h>
 #include "sparkplug_b.pb.h"
-#include "pubsub/ipayload.h"
+#include "pubsub/payload.h"
 #include "payloadhelper.h"
 #include "sparkplughelper.h"
 using namespace util::time;
-using namespace org::eclipse::tahu::protobuf;
+// using namespace org::eclipse::tahu::protobuf;
 
 namespace pub_sub::test {
 
@@ -26,9 +26,10 @@ TEST(IPayload, TestAny) {
 }
 
 TEST(Sparkplug, RawPayload) { // NOLINT
-  DataType type = DataType::DateTime;
+  org::eclipse::tahu::protobuf::DataType type =
+      org::eclipse::tahu::protobuf::DataType::DateTime;
 
-  Payload node_birth;
+  org::eclipse::tahu::protobuf::Payload node_birth;
 
   node_birth.set_timestamp(SparkplugHelper::NowMs());
   node_birth.set_seq(0);
@@ -36,22 +37,22 @@ TEST(Sparkplug, RawPayload) { // NOLINT
   auto* reboot = node_birth.add_metrics();
   reboot->set_name("Node Control/Reboot");
   reboot->set_alias(1);
-  reboot->set_datatype(DataType::Boolean);
+  reboot->set_datatype( org::eclipse::tahu::protobuf::DataType::Boolean);
   reboot->set_boolean_value(false);
 
   auto* scan_rate = node_birth.add_metrics();
   scan_rate->set_name("Node Control/Scan Rate");
   scan_rate->set_alias(2);
-  scan_rate->set_datatype(DataType::Double);
+  scan_rate->set_datatype( org::eclipse::tahu::protobuf::DataType::Double);
   scan_rate->set_double_value(1.0);
 
-  auto* props = new Payload_PropertySet;
+  auto* props = new org::eclipse::tahu::protobuf:: Payload_PropertySet;
   for (size_t index = 0; index < 10; ++index) {
       std::ostringstream temp;
       temp << "Prop" << index;
       props->add_keys(temp.str());
       auto* prop_values = props->add_values();
-      prop_values->set_type(DataType::String);
+      prop_values->set_type( org::eclipse::tahu::protobuf::DataType::String);
       prop_values->set_string_value("Hz");
   }
   scan_rate->set_allocated_properties(props);
@@ -61,7 +62,7 @@ TEST(Sparkplug, RawPayload) { // NOLINT
 }
 
 TEST(IPayload, MetricValue) {
-  IMetric metric;
+  Metric metric;
   for (int index = INT8_MIN; index <= INT8_MAX; ++index ) {
     const auto orig = static_cast<int8_t>(index);
     metric.Type(MetricType::Int8);
@@ -151,9 +152,9 @@ TEST(IPayload, MetricValue) {
 }
 
 TEST(IPayload, TestMetric) {
-  IPayload payload;
+  Payload payload;
 
-  IMetric orig;
+  Metric orig;
   const auto ms_now = SparkplugHelper::NowMs();
   constexpr int8_t value = -11;
 
@@ -166,13 +167,26 @@ TEST(IPayload, TestMetric) {
   orig.IsTransient(true);
   orig.IsNull(true);
 
-  MetricProperty prop1 = {"Scan Rate", MetricType::String, false, "Hz"};
+  MetricProperty prop1;
+  prop1.Key("Scan Rate");
+  prop1.Type( MetricType::String);
+  prop1.IsNull(false);
+  prop1.Value("Hz");
+
   orig.AddProperty(prop1);
 
-  MetricProperty prop2 = {"Read-Only", MetricType::Boolean, false, "true"};
+  MetricProperty prop2;
+  prop2.Key("Read-Only");
+  prop2.Type( MetricType::Boolean);
+  prop2.IsNull(false);
+  prop2.Value("true");
   orig.AddProperty(prop2);
 
-  MetricProperty prop3 = {"Description", MetricType::String, false, "Descriptive text"};
+  MetricProperty prop3;
+  prop3.Key("Description");
+  prop3.Type( MetricType::String);
+  prop3.IsNull(false);
+  prop3.Value("Descriptive text");
   orig.AddProperty(prop3);
 
   EXPECT_STREQ(orig.Name().c_str(), "Metric 1");
@@ -188,11 +202,11 @@ TEST(IPayload, TestMetric) {
   std::vector<uint8_t> body;
   orig.GetBody(body);
 
-  Payload_Metric temp;
+  org::eclipse::tahu::protobuf::Payload_Metric temp;
   EXPECT_TRUE(temp.ParseFromArray(body.data(), static_cast<int>(body.size())));
   std::cout << temp.DebugString() << std::endl;
 
-  IMetric dest;
+  Metric dest;
   PayloadHelper helper(payload);
   helper.WriteAllMetrics(true);
   helper.ParseMetric(temp, dest);
@@ -214,12 +228,12 @@ TEST(IPayload, TestMetric) {
 
     const auto& orig_prop = orig_itr->second;
     const auto& dest_prop = dest_itr->second;
-    EXPECT_EQ(orig_prop.key, dest_prop.key);
-    EXPECT_EQ(orig_prop.type, dest_prop.type);
-    EXPECT_EQ(orig_prop.is_null, dest_prop.is_null);
-    if (orig_prop.type == MetricType::String) {
-      EXPECT_EQ(orig_prop.value, dest_prop.value);
-    } else if (orig_prop.type == MetricType::Boolean) {
+    EXPECT_EQ(orig_prop.Key(), dest_prop.Key());
+    EXPECT_EQ(orig_prop.Type(), dest_prop.Type());
+    EXPECT_EQ(orig_prop.IsNull(), dest_prop.IsNull());
+    if (orig_prop.Type() == MetricType::String) {
+      EXPECT_EQ(orig_prop.Value<std::string>(), dest_prop.Value<std::string>());
+    } else if (orig_prop.Type() == MetricType::Boolean) {
       EXPECT_EQ(orig_prop.Value<bool>(), dest_prop.Value<bool>());
     }
     ++orig_itr;

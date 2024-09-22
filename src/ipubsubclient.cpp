@@ -7,6 +7,7 @@
 #include <util/stringutil.h>
 #include "pubsub/ipubsubclient.h"
 #include <util/ihwinfo.h>
+#include "sparkplughost.h"
 
 using namespace util::string;
 using namespace util::hw_info;
@@ -60,22 +61,13 @@ void IPubSubClient::ClearTopicList() {
   topic_list_.clear();
 }
 
-bool IPubSubClient::IsFaulty() const {
-  std::scoped_lock list_lock(topic_mutex);
-  return faulty_;
-}
 
-void IPubSubClient::SetFaulty(bool faulty, const std::string &error_text) {
-  std::scoped_lock list_lock(topic_mutex);
-  faulty_ = faulty;
-  last_error_ = error_text;
-}
 
 int IPubSubClient::GetUniqueToken() {
   return unique_token++;
 }
 
-void IPubSubClient::AddSubscriptionByTopic(const std::string &topic_name) {
+void IPubSubClient::AddSubscription(const std::string &topic_name) {
   const bool exist = std::any_of(subscription_list_.cbegin(), subscription_list_.cend(),
                                  [&] (const std::string& topic)->bool {
                                    return topic_name == topic;
@@ -85,7 +77,17 @@ void IPubSubClient::AddSubscriptionByTopic(const std::string &topic_name) {
   }
 }
 
-void IPubSubClient::DeleteSubscriptionByTopic(const std::string &topic_name) {
+void IPubSubClient::AddSubscriptionFront(const std::string &topic_name) {
+  const bool exist = std::any_of(subscription_list_.cbegin(), subscription_list_.cend(),
+                                 [&] (const std::string& topic)->bool {
+                                   return topic_name == topic;
+                                 });
+  if (!exist) {
+    subscription_list_.emplace_front(topic_name);
+  }
+}
+
+void IPubSubClient::DeleteSubscription(const std::string &topic_name) {
   auto itr = std::find_if(subscription_list_.begin(), subscription_list_.end(),
                           [&] (const std::string& topic)->bool {
                             return topic_name == topic;
@@ -95,7 +97,7 @@ void IPubSubClient::DeleteSubscriptionByTopic(const std::string &topic_name) {
   }
 }
 
-const std::vector<std::string> &IPubSubClient::Subscriptions() const {
+const std::list<std::string> &IPubSubClient::Subscriptions() const {
   return subscription_list_;
 }
 
@@ -107,21 +109,20 @@ int64_t IPubSubClient::ScanRate() const {
   return scan_rate_;
 }
 
-IPubSubClient *IPubSubClient::CreateDevice(const std::string&) {
-  // Only Sparkplug nodes can create devices.
+IPubSubClient *IPubSubClient::CreateDevice(const std::string &) {
   return nullptr;
 }
 
-void IPubSubClient::DeleteDevice(const std::string&) {
-
+void IPubSubClient::DeleteDevice(const std::string &) {
 }
 
-IPubSubClient *IPubSubClient::GetDevice(const std::string&) {
+IPubSubClient *IPubSubClient::GetDevice(const std::string &) {
   return nullptr;
 }
 
-const IPubSubClient *IPubSubClient::GetDevice(const std::string&) const {
+const IPubSubClient *IPubSubClient::GetDevice(const std::string &) const {
   return nullptr;
 }
+
 
 } // end namespace mqtt

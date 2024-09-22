@@ -8,6 +8,7 @@
 #include <string>
 #include <cstdint>
 #include <memory>
+#include <list>
 #include <vector>
 #include <functional>
 #include <set>
@@ -30,6 +31,10 @@ enum class ProtocolVersion : int {
   Mqtt5 = 5
 };
 
+class SparkplugDevice;
+class SparkplugNode;
+class SparkplugHost;
+
 /**
  * @brief The IPubSubClient class is an abstract interface for a publish-subscribe client.
  *
@@ -39,7 +44,8 @@ enum class ProtocolVersion : int {
 class IPubSubClient {
  public:
   using TopicList = std::vector<std::unique_ptr<ITopic>>;
-  using ValueList = std::vector<std::shared_ptr<IMetric>>;
+  using ValueList = std::vector<std::shared_ptr<Metric>>;
+
 
   IPubSubClient();
   virtual ~IPubSubClient() = default;
@@ -106,13 +112,19 @@ class IPubSubClient {
   virtual void ScanRate(int64_t scan_rate); ///< Scan rate in ms.
   [[nodiscard]] virtual int64_t ScanRate() const;
 
+  void SparkplugVersion(const std::string& version) { sparkplug_version_ = version; }
+  [[nodiscard]] const std::string& SparkplugVersion() const { return sparkplug_version_; }
+
+  void MqttVersion(const std::string& version) { mqtt_version_ = version; }
+  [[nodiscard]] const std::string& MqttVersion() const { return mqtt_version_; }
+
   void InService(bool in_service) { in_service_ = in_service; }
   [[nodiscard]] bool InService() const { return in_service_;}
 
   virtual bool IsOnline() const = 0;
   virtual bool IsOffline() const = 0;
 
-  virtual ITopic* AddMetric(const std::shared_ptr<IMetric>& value) = 0;
+  virtual ITopic* AddMetric(const std::shared_ptr<Metric>& value) = 0;
   virtual ITopic* CreateTopic() = 0;
 
   ITopic* GetTopic(const std::string& topic_name);
@@ -123,8 +135,8 @@ class IPubSubClient {
 
   virtual bool Start() = 0;
   virtual bool Stop() = 0;
+
   [[nodiscard]] virtual bool IsConnected() const = 0;
-  [[nodiscard]] bool IsFaulty() const;
 
   void DefaultQualityOfService(QualityOfService quality) {
     default_qos_ = quality;
@@ -134,18 +146,19 @@ class IPubSubClient {
   }
   int GetUniqueToken();
 
-  void AddSubscriptionByTopic(const std::string& topic_name);
-  void DeleteSubscriptionByTopic(const std::string& topic_name);
+  void AddSubscription(const std::string& topic_name);
+  void DeleteSubscription(const std::string& topic_name);
 
-  const std::vector<std::string>& Subscriptions() const;
+  const std::list<std::string>& Subscriptions() const;
 
   [[nodiscard]] virtual IPubSubClient* CreateDevice(const std::string& device_name);
   virtual void DeleteDevice(const std::string& device_name);
-
   [[nodiscard]] virtual IPubSubClient* GetDevice(const std::string& device_name);
   [[nodiscard]] virtual const IPubSubClient* GetDevice(const std::string& device_name) const;
+
+  [[nodiscard]] bool IsConnectionLost() const {return connection_lost_; }
+
  protected:
-  void SetFaulty(bool faulty, const std::string& error_text);
 
   ProtocolVersion version_ = ProtocolVersion::Mqtt311; ///< Using version 3.1.1 as default.
   TransportLayer transport_ = TransportLayer::MqttTcp; ///< Defines the underlying transport protocol and encryption.
@@ -159,21 +172,35 @@ class IPubSubClient {
   std::string hardware_model_; ///< Defines the hardware model.
   std::string operating_system_; ///< Defines the operating system.
   std::string os_version_; ///< Defines the operating system version.
+  std::string sparkplug_version_ = "3.0.0"; ///< Sparkplug version
+  std::string mqtt_version_ ; ///< MQTT version set by the connect
 
   std::atomic<bool> reboot_ = false;
   std::atomic<bool> rebirth_ = false;
   std::atomic<bool> next_server_ = false;
   std::atomic<int64_t> scan_rate_ = 0; ///< Scan rate in ms.
 
+
   mutable std::recursive_mutex topic_mutex; ///< Thread protection of the topic list
   TopicList topic_list_; ///< List of topics.
-  std::vector<std::string> subscription_list_;
+  std::list<std::string> subscription_list_;
+
+  void ResetConnectionLost() { connection_lost_ = false; }
+  void SetConnectionLost() { connection_lost_ = true; }
+  void AddSubscriptionFront(const std::string& topic_name);
 private:
-  bool faulty_ = false;
-  std::string last_error_;
+
   QualityOfService default_qos_ = QualityOfService::Qos1;
   std::atomic<int> unique_token = 1;
   std::atomic<bool> in_service_ = true; ///< Sets the client online of offline
+  /** \brief Connection lost or connection/disconnection fail
+   *
+   * The boolean is used at start and stop of connection and also to detect
+   * any loss of connections during run-time.
+   */
+  std::atomic<bool> connection_lost_ = false;
+
+
 };
 
 

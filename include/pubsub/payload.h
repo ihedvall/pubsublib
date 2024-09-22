@@ -11,13 +11,13 @@
 #include <map>
 #include <string>
 #include <atomic>
-#include <util/timestamp.h>
+//#include <util/timestamp.h>
 #include <util/stringutil.h>
-#include "pubsub/imetric.h"
+#include "pubsub/metric.h"
 
 namespace pub_sub {
 
-class IPayload {
+class Payload {
  public:
   using BodyList = std::vector<uint8_t>;
   /** \brief Metric/Value list that is sorted on names.
@@ -26,7 +26,7 @@ class IPayload {
    * and it ignore case. Although case sensitive names are valid, it's
    * a really bad design that causes many issues.
    */
-  using MetricList = std::map<std::string, std::shared_ptr<IMetric>,
+  using MetricList = std::map<std::string, std::shared_ptr<Metric>,
       util::string::IgnoreCase>;
 
   /** \brief Sets the timestamp for the payload.
@@ -69,11 +69,11 @@ class IPayload {
   void StringToBody(const std::string& body_text);
   [[nodiscard]] std::string BodyToString() const;
 
-  std::shared_ptr<IMetric> CreateMetric(const std::string& name);
-  void AddMetric(const std::shared_ptr<IMetric>& metric);
+  std::shared_ptr<Metric> CreateMetric(const std::string& name);
+  void AddMetric(const std::shared_ptr<Metric>& metric);
 
-  [[nodiscard]] std::shared_ptr<IMetric> GetMetric(uint64_t alias) const;
-  [[nodiscard]] std::shared_ptr<IMetric> GetMetric(const std::string& name) const;
+  [[nodiscard]] std::shared_ptr<Metric> GetMetric(uint64_t alias) const;
+  [[nodiscard]] std::shared_ptr<Metric> GetMetric(const std::string& name) const;
 
   [[nodiscard]] const MetricList& Metrics() const;
   void DeleteMetrics(const std::string& name);
@@ -95,13 +95,13 @@ class IPayload {
 };
 
 template<typename T>
-T IPayload::GetValue(const std::string &name) const {
+T Payload::GetValue(const std::string &name) const {
   auto metric = GetMetric(name);
   return metric ? metric->Value<T>() : T {};
 }
 
 template<typename T>
-void IPayload::SetValue(const std::string &name, T value) {
+void Payload::SetValue(const std::string &name, T value) {
   if (auto metric = GetMetric(name); metric ) {
     metric->Value(value);
   }
