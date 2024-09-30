@@ -60,70 +60,102 @@ void Metric::Value(std::string value) {
     }
   }
 
+  bool updated = false;
   {
     std::scoped_lock lock(metric_mutex_);
+    updated = value != value_;
     value_ = std::move(value);
   }
   IsValid(true);
-  SetUpdated();
+  if (updated) {
+    SetUpdated();
+  }
 }
 
 template<>
 void Metric::Value(std::string_view value) {
+  bool updated = false;
   {
     std::scoped_lock lock(metric_mutex_);
+    updated = value_ != value;
     value_ = value;
   }
   IsValid(true);
-  SetUpdated();
+  if (updated) {
+    SetUpdated();
+  }
 }
 
 template<>
 void Metric::Value(const char* value) {
+  bool updated = false;
   {
     std::scoped_lock lock(metric_mutex_);
-    value_ = value != nullptr ? value : "";
+    if (value == nullptr && !value_.empty()) {
+      updated = true;
+      value_.clear();
+    } else if (value != nullptr && value_ != value) {
+      updated = true;
+      value_ = value;
+    }
   }
   IsValid(true);
-  SetUpdated();
+  if (updated) {
+    SetUpdated();
+  }
 }
 
 template<>
 void Metric::Value(bool value) {
+  bool updated = false;
   {
     std::scoped_lock lock(metric_mutex_);
+    const std::string old_value = value_;
     value_ = value ? "1" : "0";
+    updated = old_value != value_;
   }
   IsValid(true);
-  SetUpdated();
+  if (updated) {
+    SetUpdated();
+  }
 }
 
 template<>
 void Metric::Value(float value) {
+  bool updated = false;
   {
     std::scoped_lock lock(metric_mutex_);
+    const std::string old_value = value_;
     value_ = util::string::FloatToString(value);
     const auto pos = value_.find(',');
     if (pos != std::string::npos) {
       value_.replace(pos, 1, ".");
     }
+    updated = old_value != value_;
   }
   IsValid(true);
-  SetUpdated();
+  if (updated) {
+    SetUpdated();
+  }
 }
 
 template<>
 void Metric::Value(double value) {
+  bool updated = false;
   {
     std::scoped_lock lock(metric_mutex_);
+    const std::string old_value = value_;
     value_ = util::string::DoubleToString(value);
     const auto pos = value_.find(',');
     if (pos != std::string::npos) {
       value_.replace(pos, 1, ".");
     }
+    updated = old_value != value_;
   }
   IsValid(true);
-  SetUpdated();
+  if (updated) {
+    SetUpdated();
+  }
 }
 
 template<>
@@ -278,15 +310,9 @@ std::string Metric::GetMqttString() const {
   return text.str();
 }
 
-void Metric::OnUpdate() {
-  if (on_update_) {
-    on_update_();
-  }
-}
-
-void Metric::Publish() {
-  if (on_publish_) {
-    on_publish_(*this);
+void Metric::FireOnMessage() {
+  if (on_message_) {
+    on_message_(*this);
   }
 }
 

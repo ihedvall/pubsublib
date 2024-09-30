@@ -57,7 +57,7 @@ ITopic *SparkplugDevice::CreateTopic() {
   // Note that parent to the topic is the node not this device.
   // The topic is however added to this device.
   auto topic = std::make_unique<SparkplugTopic>(parent_);
-  std::scoped_lock list_lock(topic_mutex);
+  std::scoped_lock list_lock(topic_mutex_);
   topic_list_.emplace_back(std::move(topic));
   return topic_list_.back().get();
 }

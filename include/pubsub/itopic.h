@@ -27,7 +27,7 @@ class ITopic {
   virtual ~ITopic() = default;
 
   void Topic(const std::string& topic);
-   [[nodiscard]] virtual const std::string& Topic() const;
+   [[nodiscard]] const std::string& Topic() const;
 
   void Namespace(const std::string& name_space) {
     name_space_ = name_space;
@@ -70,12 +70,8 @@ class ITopic {
   [[nodiscard]] const std::string& ContentType() const {
     return content_type_;
   }
-  [[nodiscard]] bool IsJson() const {
-    return content_type_.find("json") != std::string::npos;
-  }
-  [[nodiscard]] bool IsProtobuf() const {
-    return content_type_.find("protobuf") != std::string::npos;
-  }
+
+
 
   void Publish(bool publish) {
     publish_ = publish;
@@ -98,44 +94,35 @@ class ITopic {
     return retained_;
   }
 
-  [[nodiscard]] bool Updated() const;
+  [[nodiscard]] bool IsUpdated() const;
+  void ResetUpdated() const;
 
-  template <typename T>
-  void PayloadBody(const T& payload);
+  [[nodiscard]] Payload& GetPayload() { return payload_; }
+  [[nodiscard]] const Payload& GetPayload() const { return payload_; }
 
-  template<typename T>
-  [[nodiscard]] T PayloadBody() const;
-
-  Payload& GetPayload() {
-    return payload_;
-  }
   virtual void DoPublish() = 0;
-  virtual void DoSubscribe() = 0;
 
   [[nodiscard]] bool IsWildcard() const;
 
-  void Value(const std::shared_ptr<Metric>& value) {
-    value_ = value;
-  }
-  [[nodiscard]] std::shared_ptr<Metric>& Value() {
-    return value_;
-  }
-
   std::shared_ptr<Metric> CreateMetric(const std::string& name);
   std::shared_ptr<Metric> GetMetric(const std::string& name) const;
-
-  virtual void ParsePayloadData() = 0;
 
   void SetAllMetricsInvalid();
 
  protected:
   mutable std::recursive_mutex topic_mutex_;
-  bool       updated_ = false;
-  uint64_t   update_counter_ = 0;
-  std::shared_ptr<Metric> value_; ///< Reference to a user value object.
 
-  virtual void UpdatePayload(const std::vector<uint8_t>& payload);
+  [[nodiscard]] bool IsText() const {
+    return content_type_.empty() || content_type_.find("text") != std::string::npos;
+  }
 
+  [[nodiscard]] bool IsJson() const {
+    return content_type_.find("json") != std::string::npos;
+  }
+
+  [[nodiscard]] bool IsProtobuf() const {
+    return content_type_.find("protobuf") != std::string::npos;
+  }
  private:
   std::string content_type_;    ///< MIME type of data (MQTT 5)
 
@@ -155,48 +142,4 @@ class ITopic {
   void AssignLevelName(size_t level, const std::string& name);
 };
 
-template<typename T>
-void ITopic::PayloadBody(const T& payload) {
-  if (content_type_.empty()) {
-    content_type_ = "text/plain";
-  }
-  std::ostringstream text;
-  text << payload;
-  payload_.StringToBody(text.str());
-}
-
-
-template<>
-void ITopic::PayloadBody(const std::vector<uint8_t>& payload);
-
-template<>
-void ITopic::PayloadBody(const bool& payload);
-
-template<>
-void ITopic::PayloadBody(const float& payload);
-
-template<>
-void ITopic::PayloadBody(const double& payload);
-
-template<typename T>
-T ITopic::PayloadBody() const {
-  std::lock_guard lock(topic_mutex_);
-  T value = {};
-  try {
-    const auto& body = payload_.Body();
-    std::string temp(body.size(), '\0');
-    memcpy_s(temp.data(), temp.size(), body.data(), body.size());
-    std::istringstream str(temp);
-    str >> value;
-  } catch (const std::exception& ) {
-  }
-  return value;
-}
-
-template<>
-std::vector<uint8_t> ITopic::PayloadBody() const;
-
-template<>
-bool ITopic::PayloadBody() const;
-
-} // end namespace util::mqtt
+} // end namespace pub_sub

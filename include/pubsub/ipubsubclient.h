@@ -14,6 +14,7 @@
 #include <set>
 #include <mutex>
 #include <atomic>
+
 #include "pubsub/itopic.h"
 
 namespace pub_sub {
@@ -26,7 +27,7 @@ enum class TransportLayer: int {
 };
 
 enum class ProtocolVersion : int {
-  Mqtt3 = 3,
+  Mqtt31 = 3,
   Mqtt311 = 4,
   Mqtt5 = 5
 };
@@ -44,8 +45,6 @@ class SparkplugHost;
 class IPubSubClient {
  public:
   using TopicList = std::vector<std::unique_ptr<ITopic>>;
-  using ValueList = std::vector<std::shared_ptr<Metric>>;
-
 
   IPubSubClient();
   virtual ~IPubSubClient() = default;
@@ -96,6 +95,7 @@ class IPubSubClient {
   [[nodiscard]] ProtocolVersion Version() const {
     return version_;
   }
+  [[nodiscard]] std::string VersionAsString() const;
 
   void HardwareMake(const std::string& hardware_make) { hardware_make_ = hardware_make;}
   [[nodiscard]] const std::string& HardwareMake() const {return hardware_make_; }
@@ -115,8 +115,8 @@ class IPubSubClient {
   void SparkplugVersion(const std::string& version) { sparkplug_version_ = version; }
   [[nodiscard]] const std::string& SparkplugVersion() const { return sparkplug_version_; }
 
-  void MqttVersion(const std::string& version) { mqtt_version_ = version; }
-  [[nodiscard]] const std::string& MqttVersion() const { return mqtt_version_; }
+  void WaitOnHostOnline(bool wait) { wait_on_host_online_ = wait;}
+  [[nodiscard]] bool WaitOnHostOnline() const { return wait_on_host_online_; }
 
   void InService(bool in_service) { in_service_ = in_service; }
   [[nodiscard]] bool InService() const { return in_service_;}
@@ -131,12 +131,15 @@ class IPubSubClient {
   ITopic* GetITopic(const std::string& topic_name);
   ITopic* GetTopicByMessageType(const std::string &message_type);
   void DeleteTopic(const std::string& topic_name);
-  void ClearTopicList();
 
   virtual bool Start() = 0;
   virtual bool Stop() = 0;
 
   [[nodiscard]] virtual bool IsConnected() const = 0;
+  void PublishTopics();
+
+  //virtual void ReadXml(const std::string& filename) = 0;
+  //virtual void SaveXml(const std::string& filename) = 0;
 
   void DefaultQualityOfService(QualityOfService quality) {
     default_qos_ = quality;
@@ -144,9 +147,8 @@ class IPubSubClient {
   [[nodiscard]] QualityOfService DefaultQualityOfService() const {
     return default_qos_;
   }
-  int GetUniqueToken();
 
-  void AddSubscription(const std::string& topic_name);
+  void AddSubscription(std::string topic_name);
   void DeleteSubscription(const std::string& topic_name);
 
   const std::list<std::string>& Subscriptions() const;
@@ -179,15 +181,24 @@ class IPubSubClient {
   std::atomic<bool> rebirth_ = false;
   std::atomic<bool> next_server_ = false;
   std::atomic<int64_t> scan_rate_ = 0; ///< Scan rate in ms.
+  /** \brief If set to true, the node will wait for the SCADA host to go online.
+   *
+   * This boolean is used within in Sparkplug B environment. If set to true,
+   * the node will wait for a SCADA host to go ONLINE before sending any
+   * NBIRTH messages.
+   *
+   * It is also use to trigger a NDEATH command if a host is going OFFLINE.
+   */
+  bool wait_on_host_online_ = false;
 
-
-  mutable std::recursive_mutex topic_mutex; ///< Thread protection of the topic list
+  mutable std::recursive_mutex topic_mutex_; ///< Thread protection of the topic list
   TopicList topic_list_; ///< List of topics.
   std::list<std::string> subscription_list_;
 
   void ResetConnectionLost() { connection_lost_ = false; }
   void SetConnectionLost() { connection_lost_ = true; }
-  void AddSubscriptionFront(const std::string& topic_name);
+  void AddSubscriptionFront(std::string topic_name);
+
 private:
 
   QualityOfService default_qos_ = QualityOfService::Qos1;

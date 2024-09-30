@@ -7,6 +7,10 @@
 #include "pubsub/metric.h"
 #include "pubsub/ipubsubclient.h"
 
+namespace workflow {
+class IRunnerFactory;
+}
+
 namespace pub_sub {
 
 enum class PubSubType : int {
@@ -29,7 +33,7 @@ class PubSubFactory {
  * @return Smart pointer to a Pub/Sub client source.
  */
   static std::unique_ptr<IPubSubClient> CreatePubSubClient(PubSubType type);
-
+  static workflow::IRunnerFactory& GetWorkflowFactory();
 
   static std::shared_ptr<Metric> CreateMetric(const std::string_view& name);
   static std::shared_ptr<Metric> CreateMetric(const std::string& name);

@@ -7,6 +7,7 @@
 #include <gtest/gtest.h>
 #include <memory>
 #include <util/utilfactory.h>
+#include <pubsub/ipubsubclient.h>
 
 namespace pub_sub::test {
 
@@ -18,6 +19,8 @@ class TestMqtt : public testing::Test {
  protected:
   static std::string broker_;
   static std::string broker_name_;
+  static ProtocolVersion broker_version_;
+
   static std::unique_ptr<util::log::IListen> listen_;
 
 };

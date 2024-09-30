@@ -9,12 +9,13 @@
 using namespace std::chrono_literals;
 namespace pub_sub {
 bool DetectBroker::Start() {
+  InService(true);
   const auto start = MqttClient::Start();
   if (!start) {
     return false;
   }
   bool connected = false;
-  for (size_t delay = 0; delay < 1'000; ++delay) {
+  for (size_t delay = 0; delay < 100; ++delay) {
     if (IsConnectionLost()) {
       connected = false;
       break;
@@ -23,7 +24,10 @@ bool DetectBroker::Start() {
       connected = true;
       break;
     }
-    std::this_thread::sleep_for(10ms);
+    std::this_thread::sleep_for(100ms);
+  }
+  if (connected) {
+    Stop();
   }
   return connected;
 }

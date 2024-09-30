@@ -1,5 +1,7 @@
 # Copyright 2022 Ingemar Hedvall
 # SPDX-License-Identifier: MIT
+
+include(CMakePrintHelpers)
 cmake_minimum_required(VERSION 3.10)
 project(pubsublib
         VERSION 1.0
@@ -11,21 +13,29 @@ cmake_policy(SET CMP0144 NEW)
 option(BUILD_SHARED_LIBS "Static libraries are preferred" OFF)
 option(PUB_BUILD_DOC "If doxygen is installed, then build documentation in Release mode" OFF)
 option(PUB_BUILD_TEST "If Google Test is installed, then build the unit tests" OFF)
+option(PUB_BUILD_TOOL "If stand-alone applications should be build" OFF)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_DEBUG_POSTFIX d)
 
-include(CMakePrintHelpers)
 include(script/utillib.cmake)
+include(script/workflowlib.cmake)
+
 include(script/boost.cmake)
 include(script/openssl.cmake)
 include(script/expat.cmake)
-
-include(script/doxygen.cmake)
 include(script/mqtt.cmake)
-
 include(script/protobuf.cmake)
+
 # include(script/tahu.cmake)
+if (PUB_BUILD_DOC)
+    include(script/doxygen.cmake)
+endif()
+
+if (PUB_BUILD_TEST)
+    include(script/googletest.cmake)
+endif()
+
 
 add_library(pubsub STATIC
         src/ipubsubclient.cpp include/pubsub/ipubsubclient.h
@@ -52,7 +62,10 @@ add_library(pubsub STATIC
         include/pubsub/metricproperty.h
         include/pubsub/metrictype.h
         src/metricmetadata.cpp
-        include/pubsub/metricmetadata.h)
+        include/pubsub/metricmetadata.h
+        src/pubsubworkflowfactory.cpp
+        src/pubsubworkflowfactory.h
+        src/pubsubworkflowfactory.h)
 
 protobuf_generate(
         TARGET pubsub
@@ -72,6 +85,7 @@ target_include_directories(pubsub PUBLIC
         )
 target_include_directories(pubsub PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/proto)
 target_include_directories(pubsub PRIVATE ${utillib_SOURCE_DIR}/include)
+target_include_directories(pubsub PRIVATE ${workflowlib_SOURCE_DIR}/include)
 target_include_directories(pubsub PRIVATE ${Boost_INCLUDE_DIRS})
 target_include_directories(pubsub PRIVATE ${EXPAT_INCLUDE_DIRS})
 #target_include_directories(pubsub PRIVATE ${ZLIB_INCLUDE_DIRS})
@@ -92,7 +106,6 @@ endif()
 
 
 if (PUB_BUILD_TEST)
-    include(script/googletest.cmake)
     enable_testing()
     add_subdirectory(test)
 endif()

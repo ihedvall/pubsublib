@@ -11,7 +11,7 @@
 #include <map>
 #include <string>
 #include <atomic>
-//#include <util/timestamp.h>
+
 #include <util/stringutil.h>
 #include "pubsub/metric.h"
 
@@ -52,23 +52,6 @@ class Payload {
   void Uuid(const std::string& uuid);
   [[nodiscard]] std::string Uuid() const;
 
-  void GenerateJson();
-  void GenerateProtobuf();
-  void ParseSparkplugJson(bool create_metrics);
-  void ParseSparkplugProtobuf(bool create_metrics);
-
-  void Body(const BodyList& body) {
-    body_ = body;
-  }
-  [[nodiscard]] const BodyList& Body() const {
-    return body_;
-  }
-  [[nodiscard]] BodyList& Body() {
-    return body_;
-  }
-  void StringToBody(const std::string& body_text);
-  [[nodiscard]] std::string BodyToString() const;
-
   std::shared_ptr<Metric> CreateMetric(const std::string& name);
   void AddMetric(const std::shared_ptr<Metric>& metric);
 
@@ -83,8 +66,33 @@ class Payload {
 
   template<typename T>
   void SetValue(const std::string& name, T value);
-  std::string MakeJsonString() const;
 
+  void Body(const BodyList& body) {
+    body_ = body;
+  }
+
+  [[nodiscard]] const BodyList& Body() const {
+    return body_;
+  }
+
+  [[nodiscard]] BodyList& Body() {
+    return body_;
+  }
+  void StringToBody(const std::string& body_text);
+  [[nodiscard]] std::string BodyToString() const;
+
+  void GenerateJson();
+  void GenerateProtobuf();
+  void GenerateText();
+
+  void ParseText(bool create_metrics);
+  void ParseSparkplugJson(bool create_metrics);
+  void ParseSparkplugProtobuf(bool create_metrics);
+
+  std::string MakeJsonString() const;
+  std::string MakeString() const;
+ protected:
+  [[nodiscard]] bool IsUpdated() const;
  private:
   std::string uuid_;
   mutable std::recursive_mutex payload_mutex_;
@@ -106,5 +114,6 @@ void Payload::SetValue(const std::string &name, T value) {
     metric->Value(value);
   }
 }
+
 
 } // pub_sub

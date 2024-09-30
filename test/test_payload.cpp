@@ -208,7 +208,7 @@ TEST(IPayload, TestMetric) {
 
   Metric dest;
   PayloadHelper helper(payload);
-  helper.WriteAllMetrics(true);
+  helper.CreateMetrics(true);
   helper.ParseMetric(temp, dest);
 
   EXPECT_EQ(orig.Name(), dest.Name());

@@ -13,6 +13,7 @@ add_executable(test_pubsub
         test_sparkplug.cpp
         test_sparkplug.h
         test_topic.cpp
+        test_detect_broker.cpp
 )
 
 target_include_directories(test_pubsub PRIVATE ../include)

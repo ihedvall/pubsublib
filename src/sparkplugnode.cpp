@@ -13,6 +13,7 @@
 #include "sparkplugdevice.h"
 #include "pubsub/pubsubfactory.h"
 #include "sparkplughost.h"
+#include "payloadhelper.h"
 
 using namespace util::log;
 using namespace util::string;
@@ -156,17 +157,19 @@ void SparkplugNode::Connect(const MQTTAsync_successData &response) {
   server_uri_ = info.serverURI != nullptr ? info.serverURI : std::string();
   server_version_ = info.MQTTVersion;
   switch (server_version_) {
-    case MQTTVERSION_3_1_1:
-      MqttVersion("3.1.1");
+
+    case MQTTVERSION_3_1:
+      Version(ProtocolVersion::Mqtt31);
       break;
 
     case MQTTVERSION_5:
-      MqttVersion("5.0");
+      Version(ProtocolVersion::Mqtt311);
       break;
-    case MQTTVERSION_3_1:
+
+    case MQTTVERSION_3_1_1:
     case MQTTVERSION_DEFAULT:
     default:
-      MqttVersion("3.1");
+      Version(ProtocolVersion::Mqtt311);
       break;
   }
 
@@ -240,7 +243,25 @@ void SparkplugNode::Message(const std::string& topic_name, const MQTTAsync_messa
   temp_topic.Topic(topic_name);
   const std::string& message_type = temp_topic.MessageType();
   if (listen_ && listen_->IsActive()) {
-    listen_->ListenText("Message Topic: %s: %s", topic_name.c_str(), message_type.c_str());
+    // Using the temp topic to parse the payload
+    try {
+      Payload &payload = temp_topic.GetPayload();
+      auto &body = payload.Body();
+      body.resize(message.payloadlen);
+      memcpy(body.data(), message.payload, body.size());
+
+      if (temp_topic.MessageType() == kState) {
+        // Payload is JSON
+        listen_->ListenText("Message Topic: %s\n%s", topic_name.c_str(), payload.BodyToString().c_str());
+      } else {
+        //Payload is protobuf
+        PayloadHelper helper(payload);
+        listen_->ListenText("Message Topic: %s\n%s", topic_name.c_str(), helper.DebugProtobuf().c_str());
+      }
+
+    } catch (const std::exception& err) {
+      listen_->ListenText("Message Topic: %s Parse Error: %s", topic_name.c_str(), err.what());
+    }
   }
   const auto& group_name = temp_topic.GroupId();
   const auto& node_name = temp_topic.NodeId();
@@ -347,6 +368,9 @@ bool SparkplugNode::Start() {
     return false;
   }
 
+  AddDefaultMetrics();
+
+
   // Set the publishing flag to true. This defines that these messages should not be
   // updated from a subscription.
   if (auto* birth_topic = GetTopicByMessageType(kNodeBirth.data());
@@ -363,19 +387,23 @@ bool SparkplugNode::Start() {
     death_topic->Publish(true);
   }
 
-  // Add subscription on required commands
-  std::ostringstream my_node_commands;
-  my_node_commands << kNamespace << "/" << GroupId() << "/NCMD/" << Name() << "/#";
-  AddSubscription(my_node_commands.str());
-
-  std::ostringstream my_device_commands;
-  my_device_commands << kNamespace << "/" << GroupId() << "/DCMD/" << Name() << "/#";
-  AddSubscription(my_device_commands.str());
-
   // Need to keep track of my active host
   std::ostringstream my_hosts;
   my_hosts << kNamespace << "/STATE/#";
-  AddSubscription(my_hosts.str());
+  AddSubscriptionFront(my_hosts.str());
+  /*
+  // Need to keep track of my device commands
+  if (!device_list_.empty()) {
+    std::ostringstream my_device_commands;
+    my_device_commands << kNamespace << "/" << GroupId() << "/DCMD/" << Name() << "/#";
+    AddSubscriptionFront(my_device_commands.str());
+  }
+  */
+  // Add subscription on this node commands
+  std::ostringstream my_node_commands;
+  my_node_commands << kNamespace << "/" << GroupId() << "/NCMD/" << Name() << "/#";
+  AddSubscriptionFront(my_node_commands.str());
+
 
   // Set alias numbers to all metrics.
   AssignAliasNumbers();
@@ -483,6 +511,9 @@ bool SparkplugNode::SendConnect() {
   }
 
   auto& payload = node_death->GetPayload();
+  payload.SetValue(kBdSeq.data(),bd_sequence_number_);
+  payload.Timestamp(SparkplugHelper::NowMs());
+  payload.SequenceNumber(0);
   payload.GenerateProtobuf();
   const auto& body = payload.Body();
 
@@ -492,21 +523,22 @@ bool SparkplugNode::SendConnect() {
   will_options.message = nullptr; // If message is null, the payload is sent instead.
   will_options.payload.data = body.data();
   will_options.payload.len = static_cast<int>(body.size());
-  will_options.retained = node_death->Retained() ? 1 : 0;
-  will_options.qos = static_cast<int>(node_death->Qos());
+  will_options.retained = 0; // Must be false
+  will_options.qos = static_cast<int>(QualityOfService::Qos1); // Must be Qos1
 
   MQTTAsync_connectOptions connect_options = MQTTAsync_connectOptions_initializer;
-  connect_options.keepAliveInterval = 60; // 60 seconds between keep alive messages
-  connect_options.cleansession = MQTTASYNC_TRUE;
+  connect_options.keepAliveInterval = 60; // 60 seconds between keep alive messages.
+  connect_options.cleansession = MQTTASYNC_TRUE; // Must not have a persistent connection.
   connect_options.connectTimeout = 10; // Wait max 10 seconds on connect.
   connect_options.onSuccess = OnConnect;
   connect_options.onFailure = OnConnectFailure;
   connect_options.context = this;
-  connect_options.automaticReconnect = 1;
-  connect_options.retryInterval = 10;
+
+  connect_options.automaticReconnect = 0; // No automatic reconnect
+  connect_options.retryInterval = 0;
+
   connect_options.will = &will_options;
 
-  server_session_ = -1; // Used to indicate connect or connect failure
   const auto connect = MQTTAsync_connect(handle_, &connect_options);
   if (connect != MQTTASYNC_SUCCESS) {
     LOG_ERROR()  << "Failed to connect to the MQTT broker. Error: " << MQTTAsync_strerror(connect);
@@ -583,76 +615,31 @@ void SparkplugNode::CreateNodeBirthTopic() {
   topic->Retained(false);
 
   auto& payload = topic->GetPayload();
-  auto bdSeq = payload.CreateMetric(kBdSeq.data());
-  if (bdSeq) {
-    bdSeq->Type(MetricType::UInt64);
-    bdSeq->Value(bd_sequence_number_);
-  }
-
-  auto reboot = payload.CreateMetric(kReboot.data());
-  if (reboot) {
-    reboot->Type(MetricType::Boolean);
-    reboot->Value(false);
-  }
-
-  auto rebirth = payload.CreateMetric(kRebirth.data());
-  if (rebirth) {
-    rebirth->Type(MetricType::Boolean);
-    rebirth->Value(false);
-  }
-
-  auto next_server = payload.CreateMetric(kNextServer.data());
-  if (next_server) {
-    next_server->Type(MetricType::Boolean);
-    next_server->Value(false);
-  }
-
-  auto scan_rate = payload.CreateMetric(kScanRate.data());
-  if (scan_rate) {
-    scan_rate->Type(MetricType::Int64);
-    scan_rate->Value(false);
-    scan_rate->Unit("ms");
-  }
-
-  auto hardware_make = !HardwareMake().empty() ?  payload.CreateMetric(kHardwareMake.data()) : nullptr;
-  if (hardware_make) {
-    hardware_make->Type(MetricType::String);
-    hardware_make->Value(HardwareMake());
-  }
-
-  auto hardware_model = !HardwareModel().empty() ?  payload.CreateMetric(kHardwareModel.data()) : nullptr;
-  if (hardware_model) {
-    hardware_model->Type(MetricType::String);
-    hardware_model->Value(HardwareModel());
-  }
-
-  auto operating_system = !OperatingSystem().empty() ?  payload.CreateMetric(kOs.data()) : nullptr;
-  if (operating_system) {
-    operating_system->Type(MetricType::String);
-    operating_system->Value(OperatingSystem());
-  }
-
-  auto os_version = !OsVersion().empty() ?  payload.CreateMetric(kOsVersion.data()) : nullptr;
-  if (os_version) {
-    os_version->Type(MetricType::String);
-    os_version->Value(OsVersion());
-  }
-
   payload.Timestamp(SparkplugHelper::NowMs(), true);
 }
 
 void SparkplugNode::StartSubscription() {
+
   for (const std::string& topic : subscription_list_ ) {
+    auto qos = DefaultQualityOfService();
+    SparkplugTopic temp_topic(*this);
+    temp_topic.Topic(topic);
+    if (temp_topic.MessageType() == kNodeCommand) {
+      qos = QualityOfService::Qos1; // Required by
+    }
+
     MQTTAsync_responseOptions options = MQTTAsync_responseOptions_initializer;
+
     options.onSuccess = OnSubscribe;
     options.onFailure = OnSubscribeFailure;
     options.context = this;
+
 
     if (listen_ && listen_->IsActive()) {
       listen_->ListenText("Subscribe: %s", topic.c_str());
     }
     const auto subscribe = MQTTAsync_subscribe(handle_, topic.c_str(),
-                                               static_cast<int>(DefaultQualityOfService()), &options);
+                                               static_cast<int>(qos), &options);
     if (subscribe != MQTTASYNC_SUCCESS) {
       LOG_ERROR() << "Subscription Failed. Topic: " << topic << ". Error: " << MQTTAsync_strerror(subscribe);
     }
@@ -662,7 +649,7 @@ void SparkplugNode::StartSubscription() {
 
 ITopic *SparkplugNode::CreateTopic() {
   auto topic = std::make_unique<SparkplugTopic>(*this);
-  std::scoped_lock list_lock(topic_mutex);
+  std::scoped_lock list_lock(topic_mutex_);
 
   topic_list_.emplace_back(std::move(topic));
   return topic_list_.back().get();
@@ -735,10 +722,6 @@ bool SparkplugNode::IsOnline() const {
 
 bool SparkplugNode::IsOffline() const {
   return node_state_ == NodeState::Idle;
-}
-
-bool SparkplugNode::IsDelivered() {
-  return delivered_;
 }
 
 void SparkplugNode::NodeTask() {
@@ -822,7 +805,11 @@ void SparkplugNode::DoIdle() {
     return;
   }
   // Check if in service
-  if (!InService()) {
+  if (!InService() ) {
+    return;
+  }
+  // Check if the node should wait for host online
+  if (WaitOnHostOnline() && !IsHostOnline()) {
     return;
   }
 
@@ -871,8 +858,7 @@ void SparkplugNode::DoWaitOnConnect() {
 
 void SparkplugNode::DoOnline() {
   const auto now = SparkplugHelper::NowMs();
-  // const bool timeout = now >= node_timer_;
-  if (stop_node_task_ || !InService()) {
+  if (stop_node_task_ || !InService() || (WaitOnHostOnline() && !IsHostOnline())) {
     PollDevices(); // This generates DDEATH messages
     PublishNodeDeath();
     SendDisconnect();
@@ -968,6 +954,7 @@ SparkplugHost *SparkplugNode::GetHost(const std::string &host_id) {
         my_host != nullptr && IEquals(host_id, my_host->Name())) {
       return my_host;
     }
+    std::scoped_lock list_lock(list_mutex_);
     // Check remote hosts
     auto itr = std::find_if(node_list_.begin(), node_list_.end(),
                             [&] (auto& client) -> bool {
@@ -991,7 +978,7 @@ SparkplugNode *SparkplugNode::GetNode(const std::string &group_id, const std::st
   if (IEquals(group_id, GroupId()) && IEquals(node_id, Name()) ) {
     return this;
   }
-
+  std::scoped_lock list_lock(list_mutex_);
   // Check remote nodes/hosts
   auto itr = std::find_if(node_list_.begin(), node_list_.end(),
                           [&] (auto& client) -> bool {
@@ -1015,7 +1002,10 @@ void SparkplugNode::HandleStateMessage(const std::string& host_name, const MQTTA
     auto sparkplug_host = PubSubFactory::CreatePubSubClient(PubSubType::SparkplugHost);
     if (sparkplug_host) {
       sparkplug_host->Name(host_name);
-      node_list_.emplace_back(std::move(sparkplug_host));
+      {
+        std::scoped_lock list_lock(list_mutex_);
+        node_list_.emplace_back(std::move(sparkplug_host));
+      }
       host = GetHost(host_name);
     }
   }
@@ -1060,7 +1050,10 @@ void SparkplugNode::HandleNodeBirthMessage(const std::string &group_name,
     if (sparkplug_node) {
       sparkplug_node->GroupId(group_name);
       sparkplug_node->Name(node_name);
-      node_list_.emplace_back(std::move(sparkplug_node) );
+      {
+        std::scoped_lock list_lock(list_mutex_);
+        node_list_.emplace_back(std::move(sparkplug_node));
+      }
       node = GetNode(group_name, node_name);
     }
   }
@@ -1159,7 +1152,7 @@ void SparkplugNode::HandleNodeCommandMessage(const std::string &group_name,
     payload_data.resize(data_size);
     if (message.payload != nullptr && data_size > 0) {
       std::memcpy(payload_data.data(), message.payload, data_size);
-      payload.ParseSparkplugProtobuf(true);
+      payload.ParseSparkplugProtobuf(false);
     }
   } catch (const std::exception &err) {
     LOG_ERROR() << "Failed to parse the NCMD payload. Error: " << err.what();
@@ -1221,7 +1214,10 @@ void SparkplugNode::HandleDeviceBirthMessage(const std::string &group_name,
     if (sparkplug_node) {
       sparkplug_node->GroupId(group_name);
       sparkplug_node->Name(node_name);
-      node_list_.emplace_back(std::move(sparkplug_node) );
+      {
+        std::scoped_lock list_lock(list_mutex_);
+        node_list_.emplace_back(std::move(sparkplug_node));
+      }
       node = GetNode(group_name, node_name);
     }
   }
@@ -1329,7 +1325,10 @@ void SparkplugNode::HandleDeviceCommandMessage(const std::string &group_name,
     if (sparkplug_node) {
       sparkplug_node->GroupId(group_name);
       sparkplug_node->Name(node_name);
-      node_list_.emplace_back(std::move(sparkplug_node) );
+      {
+        std::scoped_lock list_lock(list_mutex_);
+        node_list_.emplace_back(std::move(sparkplug_node));
+      }
       node = GetNode(group_name, node_name);
     }
   }
@@ -1383,7 +1382,10 @@ void SparkplugNode::HandleDeviceDataMessage(const std::string &group_name,
     if (sparkplug_node) {
       sparkplug_node->GroupId(group_name);
       sparkplug_node->Name(node_name);
-      node_list_.emplace_back(std::move(sparkplug_node) );
+      {
+        std::scoped_lock list_lock(list_mutex_);
+        node_list_.emplace_back(std::move(sparkplug_node));
+      }
       node = GetNode(group_name, node_name);
     }
   }
@@ -1452,6 +1454,92 @@ void SparkplugNode::AssignAliasNumbers() {
 
   LOG_TRACE() << "Max alias number. Alias: " << alias_number;
 
+}
+
+void SparkplugNode::AddDefaultMetrics() {
+  auto* topic = GetTopicByMessageType("NBIRTH");
+  if (topic == nullptr) {
+    return;
+  }
+
+  auto& payload = topic->GetPayload();
+  auto bdSeq = payload.CreateMetric(kBdSeq.data());
+  if (bdSeq) {
+    bdSeq->Type(MetricType::UInt64);
+    bdSeq->Value(bd_sequence_number_);
+  }
+
+  auto rebirth = payload.CreateMetric(kRebirth.data());
+  if (rebirth) {
+    rebirth->Type(MetricType::Boolean);
+    rebirth->Value(false);
+    rebirth->IsReadWrite(true);
+  }
+
+  auto reboot = payload.CreateMetric(kReboot.data());
+  if (reboot) {
+    reboot->Type(MetricType::Boolean);
+    reboot->Value(false);
+    reboot->IsReadWrite(true);
+  }
+  auto next_server = payload.CreateMetric(kNextServer.data());
+  if (next_server) {
+    next_server->Type(MetricType::Boolean);
+    next_server->Value(false);
+    next_server->IsReadWrite(true);
+  }
+
+  auto scan_rate = payload.CreateMetric(kScanRate.data());
+  if (scan_rate) {
+    scan_rate->Type(MetricType::Int64);
+    scan_rate->Value(false);
+    scan_rate->Unit("ms");
+    scan_rate->IsReadWrite(true);
+  }
+
+  auto hardware_make = !HardwareMake().empty() ?  payload.CreateMetric(kHardwareMake.data()) : nullptr;
+  if (hardware_make) {
+    hardware_make->Type(MetricType::String);
+    hardware_make->Value(HardwareMake());
+  }
+
+  auto hardware_model = !HardwareModel().empty() ?  payload.CreateMetric(kHardwareModel.data()) : nullptr;
+  if (hardware_model) {
+    hardware_model->Type(MetricType::String);
+    hardware_model->Value(HardwareModel());
+  }
+
+  auto operating_system = !OperatingSystem().empty() ?  payload.CreateMetric(kOs.data()) : nullptr;
+  if (operating_system) {
+    operating_system->Type(MetricType::String);
+    operating_system->Value(OperatingSystem());
+  }
+
+  auto os_version = !OsVersion().empty() ?  payload.CreateMetric(kOsVersion.data()) : nullptr;
+  if (os_version) {
+    os_version->Type(MetricType::String);
+    os_version->Value(OsVersion());
+  }
+
+}
+
+bool SparkplugNode::IsHostOnline() const {
+  std::scoped_lock list_lock(list_mutex_);
+  for ( const auto& node : node_list_) {
+    if (!node || !IsSparkplugHost(node.get())) {
+      continue;
+    }
+    auto* state_topic = node->GetTopicByMessageType("STATE");
+    if (state_topic == nullptr) {
+      continue;
+    }
+    const auto& payload = state_topic->GetPayload();
+    const auto online = payload.GetValue<bool>("online");
+    if (online) {
+      return true;
+    }
+  }
+  return false;
 }
 
 } // pub_sub

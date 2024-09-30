@@ -181,6 +181,7 @@ TEST_F(TestSparkplug, TestNode) {
   if (kBroker.empty()) {
     GTEST_SKIP_("No MQTT broker detected");
   }
+
   auto node = PubSubFactory::CreatePubSubClient(PubSubType::SparkplugNode);
   ASSERT_TRUE(node);
   node->Broker(kBroker);

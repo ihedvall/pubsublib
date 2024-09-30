@@ -22,6 +22,7 @@ namespace {
 namespace pub_sub {
 SparkplugHost::SparkplugHost()
 : SparkplugNode() {
+  topic_list_.clear(); // Remove any topic created by the Sparkplug node
   CreateStateTopic();
 
 }
@@ -73,8 +74,6 @@ bool SparkplugHost::Start() {
   if (listen_ && !Name().empty()) {
     listen_->PreText(Name());
   }
-
-
 
   std::ostringstream connect_string;
   switch (Transport()) {
@@ -379,7 +378,7 @@ void SparkplugHost::DoWaitOnConnect() {
 
   // Need to update the MQTT version that was received with the connect reply.
   auto& payload = state_topic->GetPayload();
-  payload.SetValue("Properties/MQTT Version", MqttVersion());
+  payload.SetValue("Properties/MQTT Version", VersionAsString());
 
   AddSubscription(state_topic->Topic());
   StartSubscription();
@@ -481,7 +480,7 @@ void SparkplugHost::AddDefaultMetrics() {
 
   auto mqtt_version = payload.CreateMetric("Properties/MQTT Version");
   mqtt_version->Type(MetricType::String);
-  mqtt_version->Value(MqttVersion());
+  mqtt_version->Value(VersionAsString());
 
 }
 

@@ -28,8 +28,13 @@ namespace pub_sub {
  * Note that in the basic MQTT protocol, no properties exist but in SparkPlug B properties are optional.
  * This interface have interfaces to the most common properties as unit and description.
  */
+ class Metric;
+
+using MetricCallback = std::function<void(Metric& metric)>;
 
 class Metric {
+  friend class MqttClient;
+
  public:
   Metric() = default;
   explicit Metric(std::string name);
@@ -123,21 +128,14 @@ class Metric {
   std::string GetMqttString() const;
   [[nodiscard]] std::string DebugString() const;
 
-  void OnUpdate();
-  void SetOnUpdate(std::function<void()> on_update) {
-    on_update_ = std::move(on_update);
-  }
-
-  void Publish();
-  void SetPublish(std::function<void(Metric&)> on_publish) {
-    on_publish_ = std::move(on_publish);
+  void SetOnMessage(MetricCallback on_message) {
+    on_message_ = std::move(on_message);
   }
 
   void SetUpdated() { updated_ = true; }
+  void ResetUpdated() { updated_ = false; }
   [[nodiscard]] bool IsUpdated() {
-    const bool upd = updated_;
-    updated_ = false;
-    return upd;
+    return updated_;
   }
 
  private:
@@ -156,25 +154,34 @@ class Metric {
 
   mutable std::recursive_mutex metric_mutex_;
   std::string value_;
-  std::function<void()> on_update_;
-  std::function<void(Metric& )> on_publish_;
+  MetricCallback on_message_;
+  MetricCallback on_publish_;
   std::unique_ptr<MetricMetadata> meta_data_;
 
   std::atomic<bool> updated_ = false;
+
+  void FireOnMessage();
 };
 
 template<typename T>
 void Metric::Value(T value) {
+
   try {
+    bool updated = false;
     {
       std::scoped_lock lock(metric_mutex_);
+      const std::string old_value = value_;
       value_ = std::to_string(value);
+      updated = old_value != value_;
     }
     IsValid(true);
-    SetUpdated();
+    if (updated) {
+      SetUpdated();
+    }
   } catch (const std::exception& ) {
     IsValid(false);
   }
+
 }
 
 template<>

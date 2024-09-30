@@ -40,15 +40,16 @@ class SparkplugNode : public IPubSubClient {
   MQTTAsync& Handle() { return handle_; }
   util::log::IListen* Listen() { return listen_.get(); }
 
-  void ResetDelivered() { delivered_ = false;}
-  void SetDelivered() { delivered_ = true; }
-  bool IsDelivered();
+
 
  protected:
+
+
+
   MQTTAsync handle_ = nullptr;
   std::unique_ptr<util::log::IListen> listen_;
-  std::condition_variable node_event_;
-  std::mutex node_mutex_;
+  std::condition_variable node_event_; ///< Can be used to speed up the scanning of the thread
+  std::mutex node_mutex_; ///< Used to wait for events
   std::thread work_thread_; ///< Handles the online connect and subscription
 
   std::atomic<bool> delivered_ = false;
@@ -56,6 +57,12 @@ class SparkplugNode : public IPubSubClient {
   std::string server_uri_;
   int server_version_ = 0;
   int server_session_ = -1;
+
+  void ResetDelivered() { delivered_ = false;}
+  void SetDelivered() { delivered_ = true; }
+  [[nodiscard]] bool IsDelivered() const {
+    return delivered_;
+  }
 
   virtual bool SendConnect();
   void StartSubscription();
@@ -103,6 +110,7 @@ class SparkplugNode : public IPubSubClient {
 
   using NodeList = std::vector< std::unique_ptr<IPubSubClient> >;
   NodeList node_list_; ///< List of external host and nodes
+  mutable std::recursive_mutex list_mutex_;
 
   SparkplugHost* GetHost(const std::string& host_id);
   SparkplugNode* GetNode(const std::string& group_id, const std::string& node_id);
@@ -110,6 +118,7 @@ class SparkplugNode : public IPubSubClient {
   bool CreateNode();
   void CreateNodeDeathTopic();
   void CreateNodeBirthTopic();
+  void AddDefaultMetrics();
   void PublishNodeBirth();
   void PublishNodeDeath();
   void PollDevices();
@@ -141,6 +150,8 @@ class SparkplugNode : public IPubSubClient {
                                   const std::string& device_name, const MQTTAsync_message& message);
 
   void AssignAliasNumbers();
+
+  [[nodiscard]] bool IsHostOnline() const;
 };
 
 } // pub_sub

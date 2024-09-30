@@ -171,11 +171,7 @@ void PayloadHelper::WriteProtobuf() {
     pb_payload.set_timestamp(source_.Timestamp());
     auto seq_no = source_.SequenceNumber();
     pb_payload.set_seq(seq_no);
-    ++seq_no;
-    if (seq_no > 255) {
-      seq_no = 0;
-    }
-    source_.SequenceNumber(seq_no);
+
     if (!source_.Uuid().empty()) {
       pb_payload.set_uuid(source_.Uuid());
     }
@@ -196,6 +192,7 @@ void PayloadHelper::WriteProtobuf() {
           continue;
         }
         WriteMetric(*metric, *met);
+        metric->ResetUpdated();
       }
     }
 
@@ -217,83 +214,94 @@ void PayloadHelper::WriteProtobuf() {
   }
 }
 
-void PayloadHelper::WriteMetric(const Metric &metric, Payload_Metric &dest) const {
+void PayloadHelper::WriteMetric(const Metric &metric, Payload_Metric &pb_metric) const {
   try {
-    dest.set_name(metric.Name()); // Include name for tracing purpose
-    dest.set_alias(metric.Alias());
-    dest.set_timestamp(metric.Timestamp());
-    dest.set_is_historical(metric.IsHistorical());
-    dest.set_is_transient(metric.IsTransient());
-    dest.set_is_null(metric.IsNull());
+
+    if (WriteAllMetrics() || metric.Alias() == 0) {
+      pb_metric.set_name(metric.Name()); // Include name for tracing purpose
+    }
+    pb_metric.set_alias(metric.Alias());
+    pb_metric.set_timestamp(metric.Timestamp());
+    pb_metric.set_is_historical(metric.IsHistorical());
+    pb_metric.set_is_transient(metric.IsTransient());
+    pb_metric.set_is_null(metric.IsNull());
 
     // The above is the only parameters to send
-    if (!WriteAllMetrics()) {
-      return;
+    if (WriteAllMetrics()) {
+      pb_metric.set_datatype(static_cast<uint32_t>(metric.Type()));
     }
-    dest.set_datatype(static_cast<uint32_t>(metric.Type()));
     switch (metric.Type()) {
       case MetricType::Int8:
       case MetricType::Int16:
       case MetricType::Int32:
-        dest.set_int_value(static_cast<uint32_t>(metric.Value<int32_t>()));
+        pb_metric.set_int_value(static_cast<uint32_t>(metric.Value<int32_t>()));
         break;
 
       case MetricType::Int64:
-        dest.set_long_value(static_cast<uint64_t>(metric.Value<int64_t>()));
+        pb_metric.set_long_value(static_cast<uint64_t>(metric.Value<int64_t>()));
         break;
 
       case MetricType::UInt8:
       case MetricType::UInt16:
       case MetricType::UInt32:
-        dest.set_int_value(metric.Value<uint32_t>());
+        pb_metric.set_int_value(metric.Value<uint32_t>());
         break;
 
       case MetricType::UInt64:
-        dest.set_long_value(metric.Value<uint64_t>());
+        pb_metric.set_long_value(metric.Value<uint64_t>());
         break;
 
       case MetricType::Float:
-        dest.set_float_value(metric.Value<float>());
+        pb_metric.set_float_value(metric.Value<float>());
         break;
 
       case MetricType::Double:
-        dest.set_double_value(metric.Value<double>());
+        pb_metric.set_double_value(metric.Value<double>());
         break;
 
       case MetricType::Boolean:
-        dest.set_boolean_value(metric.Value<bool>());
+        pb_metric.set_boolean_value(metric.Value<bool>());
         break;
 
       case MetricType::String:
       case MetricType::Unknown:
       default:
-        dest.set_string_value(metric.Value<std::string>());
+        pb_metric.set_string_value(metric.Value<std::string>());
         break;
     }
 
     const auto &property_list = metric.Properties();
+
     if (!property_list.empty()) {
-      auto *pb_property_set = new Payload_PropertySet;
-      WritePropertySet(property_list, *pb_property_set);
-      dest.set_allocated_properties(pb_property_set);
+      auto pb_property_set = std::make_unique<Payload_PropertySet>();
+      const bool changed = WritePropertySet(property_list, *pb_property_set );
+      if (changed) {
+        pb_metric.set_allocated_properties(pb_property_set.release());
+      }
     }
   } catch (const std::exception& err) {
     LOG_ERROR() << "Failed to write metric. Error: " << err.what();
   }
 }
 
-void PayloadHelper::WritePropertySet(const MetricPropertyList &property_list, Payload_PropertySet &pb_property_set) {
+bool PayloadHelper::WritePropertySet(const MetricPropertyList &property_list,
+                                     Payload_PropertySet &pb_property_set) const {
+  bool changed = false;
   try {
     for (const auto &[name, prop] : property_list) {
       if (name.empty()) {
         continue;
       }
+      // Todo: check if the property has been updated
+      changed = true;
       pb_property_set.add_keys(name);
       auto *pb_property_value = pb_property_set.add_values();
       if (pb_property_value == nullptr) {
         throw std::runtime_error("Failed to create a property value");
       }
-      pb_property_value->set_type(static_cast<DataType>(prop.Type()));
+      if (WriteAllMetrics()) {
+        pb_property_value->set_type(static_cast<DataType>(prop.Type()));
+      }
       pb_property_value->set_is_null(prop.IsNull());
 
       switch (prop.Type()) {
@@ -340,9 +348,11 @@ void PayloadHelper::WritePropertySet(const MetricPropertyList &property_list, Pa
 
   } catch (const std::exception& err) {
     LOG_ERROR() << "Failed to write property set. Error: " << err.what();
+    changed = false;
   }
-
+  return changed;
 }
+
 void PayloadHelper::ParseProtobuf() {
   // The Payload body (data bytes) should hold the protobuf data
   try {
@@ -355,6 +365,73 @@ void PayloadHelper::ParseProtobuf() {
     if (!parse) {
       throw std::runtime_error("Parsing error.");
     }
+    // We need to handle if the pb_payload.bytes is in use. Strange design ?
+    if (pb_payload.has_body()) {
+      // Restart the parser
+      const auto &body_list = pb_payload.body();
+      pb_payload.Clear();
+      parse = pb_payload.ParseFromArray(body_list.data(), static_cast<int>(body_list.size()));
+      if (!parse) {
+        throw std::runtime_error("Parsing error (pb_payload.body).");
+      }
+    }
+
+    source_.Timestamp(pb_payload.has_timestamp() ? pb_payload.timestamp() : SparkplugHelper::NowMs());
+    if (pb_payload.has_seq()) {
+      source_.SequenceNumber(pb_payload.seq());
+    }
+    if (pb_payload.has_uuid()) {
+      source_.Uuid(pb_payload.uuid());
+    }
+    // Read in the metrics
+    for (const auto &pb_metric : pb_payload.metrics()) {
+      std::shared_ptr<Metric> metric;
+      std::string name;
+      if (pb_metric.has_name()) {
+        name = pb_metric.name();
+        metric = source_.GetMetric(name);
+      } else if (pb_metric.has_alias()) {
+        metric = source_.GetMetric(pb_metric.alias());
+      }
+      // It's always possible to create metrics, but you cannot change
+      // name, alias and data type on existing metrics.
+      if (!metric && !name.empty() && CreateMetrics()) {
+        metric = source_.CreateMetric(name);
+        if (!metric) {
+          throw std::runtime_error("Create failed. Internal error");
+        }
+        if (pb_metric.has_alias()) {
+          metric->Alias(pb_metric.alias());
+        }
+        if (pb_metric.has_datatype()) {
+          metric->Type(ProtobufDataTypeToMetricType(pb_metric.datatype()));
+        }
+      }
+      if (!metric) {
+        continue;
+      }
+      ParseMetric(pb_metric, *metric);
+    }
+
+  } catch (const std::exception &err) {
+    LOG_ERROR() << "Protobuf parsing error. Error: " << err.what();
+  }
+}
+
+std::string PayloadHelper::DebugProtobuf() const {
+
+  try {
+    const auto &body = source_.Body();
+    if (body.empty()) {
+      return {};
+    }
+    org::eclipse::tahu::protobuf::Payload pb_payload;
+    bool parse = pb_payload.ParseFromArray(body.data(), static_cast<int>(body.size()));
+    if (!parse) {
+      throw std::runtime_error("Parsing error.");
+    }
+    return pb_payload.DebugString();
+    /*
     // We need to handle if the pb_payload.bytes is in use. Strange design ?
     if (pb_payload.has_body()) {
       // Restart the parser
@@ -402,21 +479,26 @@ void PayloadHelper::ParseProtobuf() {
       }
       ParseMetric(pb_metric, *metric);
     }
+     */
 
   } catch (const std::exception &err) {
     LOG_ERROR() << "Protobuf parsing error. Error: " << err.what();
   }
+  return {};
 }
 
 void PayloadHelper::ParseMetric(const Payload_Metric &pb_metric, Metric &metric) {
   try {
-    if (metric.Name().empty() && pb_metric.has_name()) {
+    // Note that name, type and alias cannot be changed in data messages.
+    // It is the "create metrics" boolean that needs to be set if key and names
+    // can be changes.
+    if (metric.Name().empty() && pb_metric.has_name() && CreateMetrics()) {
       metric.Name(pb_metric.name());
     }
-    if (metric.Alias() == 0 && pb_metric.has_alias() != 0) {
+    if (metric.Alias() == 0 && pb_metric.has_alias() != 0 && CreateMetrics()) {
       metric.Alias(pb_metric.alias());
     }
-    if (metric.Type() == MetricType::Unknown && pb_metric.has_datatype() != 0) {
+    if (metric.Type() == MetricType::Unknown && pb_metric.has_datatype() != 0 && CreateMetrics()) {
       metric.Type(ProtobufDataTypeToMetricType(pb_metric.datatype()));
     }
     metric.Timestamp(pb_metric.has_timestamp() ? pb_metric.timestamp() : source_.Timestamp());
@@ -458,7 +540,8 @@ void PayloadHelper::ParseMetric(const Payload_Metric &pb_metric, Metric &metric)
       metric.Value(pb_metric.bytes_value());
     }
 
-    if (pb_metric.has_metadata()) {
+    // Suppose that the metrics can change in a data message
+    if (pb_metric.has_metadata() ) {
       auto *meta_data = metric.CreateMetaData();
       if (meta_data != nullptr) {
         ParseMetaData(pb_metric.metadata(), *meta_data);
@@ -470,13 +553,13 @@ void PayloadHelper::ParseMetric(const Payload_Metric &pb_metric, Metric &metric)
       for (int key = 0; key < pb_prop_list.keys_size(); ++key) {
         const auto &prop_key = pb_prop_list.keys(key);
         const auto value_list_size = pb_prop_list.values_size();
-        if (prop_key.empty() || key >= value_list_size) {
+        if (prop_key.empty() || key >= value_list_size ) {
           continue;
         }
         const auto &pb_property_value = pb_prop_list.values(key);
 
         MetricProperty *property = metric.GetProperty(prop_key);
-        if (property == nullptr) {
+        if (property == nullptr && CreateMetrics()) {
           property = metric.CreateProperty(prop_key);
           if (property == nullptr) {
             throw std::runtime_error("Failed to create metric property");
@@ -484,6 +567,9 @@ void PayloadHelper::ParseMetric(const Payload_Metric &pb_metric, Metric &metric)
           if (pb_property_value.has_type()) {
             property->Type( ProtobufDataTypeToMetricType(pb_property_value.type()) );
           }
+        }
+        if (property == nullptr) {
+          continue;
         }
         ParsePropertyValue(pb_property_value, *property);
       }
@@ -568,6 +654,9 @@ void PayloadHelper::ParsePropertyValue(const Payload_PropertyValue &pb_property_
     } else if (pb_property_value.has_propertyset_value()) {
       const auto &pb_property_set = pb_property_value.propertyset_value();
       if (property.PropertyArray().empty()) {
+        if (!CreateMetrics()) {
+          return;
+        }
         property.Value("");
         property.PropertyArray().resize(1, {});
       }
@@ -589,6 +678,9 @@ void PayloadHelper::ParsePropertySet(const Payload_PropertySet &pb_property_set,
       const auto &sub_value = pb_property_set.values(sub);
       auto sub_exist = property_list.find(sub_key);
       if (sub_exist == property_list.end()) {
+        if (!CreateMetrics()) {
+          continue;
+        }
         MetricProperty sub_prop;
         sub_prop.Key( sub_key);
         ParsePropertyValue(sub_value, sub_prop);

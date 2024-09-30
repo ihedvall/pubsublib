@@ -79,13 +79,13 @@ void Payload::DeleteMetrics(const std::string &name) {
   };
 }
 
+void Payload::GenerateText() {
+  const std::string text = MakeString();
+  StringToBody(text);
+}
 void Payload::GenerateJson() {
   const std::string json = MakeJsonString();
-  std::vector<uint8_t> body(json.size(), 0);
-  for (size_t index = 0; index < json.size(); ++index) {
-    body[index] = static_cast<uint8_t>(json[index]);
-  }
-  Body(body);
+  StringToBody(json);
 }
 
 void Payload::GenerateProtobuf() {
@@ -171,6 +171,28 @@ std::string Payload::MakeJsonString() const {
     }
   }
   return boost::json::serialize(obj);
+}
+
+std::string Payload::MakeString() const {
+  std::ostringstream temp;
+  bool first = true;
+  std::scoped_lock lock(payload_mutex_);
+  for (const auto& [name,metric] : metric_list_) {
+    if (!metric ) {
+      continue;
+    }
+    if (!first) {
+      temp << ";";
+    }
+    first = false;
+    if (metric->IsNull()) {
+      temp << "*";
+    } else {
+      temp << metric->Value<std::string>();
+    }
+  }
+
+  return temp.str();
 }
 
 std::string Payload::BodyToString() const {
@@ -279,12 +301,43 @@ void Payload::ParseSparkplugJson(bool create_metrics) {
   }
 }
 
+void Payload::ParseText(bool create_metrics) {
+  try {
+    const auto text = BodyToString();
+    if (metric_list_.empty()) {
+      auto metric = CreateMetric("Value");
+      if (metric) {
+        metric->Type(MetricType::String);
+        metric->Value(text);
+      }
+
+    } else {
+      auto &metric = metric_list_.begin()->second;
+      if (metric) {
+        metric->Value(text);
+      }
+    }
+  } catch (const std::exception& ) {}
+}
+
 void Payload::ParseSparkplugProtobuf(bool create_metrics) {
   PayloadHelper helper(*this);
+  helper.CreateMetrics(create_metrics);
   std::scoped_lock lock(payload_mutex_);
   helper.ParseProtobuf();
 }
 
-
+bool Payload::IsUpdated() const {
+  std::scoped_lock lock(payload_mutex_);
+  for (const auto&[name,metric] : metric_list_) {
+    if (!metric) {
+      continue;
+    }
+    if (metric->IsUpdated()) {
+      return true;
+    }
+  }
+  return false;
+}
 
 } // pub_sub

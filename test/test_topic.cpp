@@ -36,14 +36,11 @@ TEST(TestTopic, Properties ) {
     constexpr std::string_view kJsonType = "application/json";
     topic->ContentType(kJsonType.data());
     EXPECT_STREQ(topic->ContentType().c_str(), kJsonType.data());
-    EXPECT_TRUE(topic->IsJson());
-    EXPECT_FALSE(topic->IsProtobuf());
+
 
     constexpr std::string_view kProtobufType = "application/protobuf";
     topic->ContentType(kProtobufType.data());
     EXPECT_STREQ(topic->ContentType().c_str(), kProtobufType.data());
-    EXPECT_TRUE(topic->IsProtobuf());
-    EXPECT_FALSE(topic->IsJson());
 
     topic->Qos(QualityOfService::Qos2);
     EXPECT_EQ(topic->Qos(), QualityOfService::Qos2);

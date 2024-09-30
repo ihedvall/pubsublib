@@ -7,6 +7,7 @@
 #include <util/stringutil.h>
 #include "pubsub/ipubsubclient.h"
 #include <util/ihwinfo.h>
+
 #include "sparkplughost.h"
 
 using namespace util::string;
@@ -22,7 +23,7 @@ IPubSubClient::IPubSubClient()
 }
 
 ITopic *IPubSubClient::GetTopic(const std::string &topic_name) {
-  std::scoped_lock list_lock(topic_mutex);
+  std::scoped_lock list_lock(topic_mutex_);
 
   auto itr = std::ranges::find_if(topic_list_,[&] (const auto& topic) {
     return topic && topic_name == topic->Topic();
@@ -31,7 +32,7 @@ ITopic *IPubSubClient::GetTopic(const std::string &topic_name) {
 }
 
 ITopic *IPubSubClient::GetITopic(const std::string &topic_name) {
-  std::scoped_lock list_lock(topic_mutex);
+  std::scoped_lock list_lock(topic_mutex_);
   auto itr = std::ranges::find_if(topic_list_,[&] (const auto& topic) {
     return topic && IEquals(topic_name,topic->Topic());
   });
@@ -39,7 +40,7 @@ ITopic *IPubSubClient::GetITopic(const std::string &topic_name) {
 }
 
 ITopic *IPubSubClient::GetTopicByMessageType(const std::string &message_type) {
-  std::scoped_lock list_lock(topic_mutex);
+  std::scoped_lock list_lock(topic_mutex_);
   auto itr = std::ranges::find_if(topic_list_,[&] (const auto& topic) {
     return topic && IEquals(message_type,topic->MessageType());
   });
@@ -47,7 +48,7 @@ ITopic *IPubSubClient::GetTopicByMessageType(const std::string &message_type) {
 
 }
 void IPubSubClient::DeleteTopic(const std::string &topic_name) {
-  std::scoped_lock list_lock(topic_mutex);
+  std::scoped_lock list_lock(topic_mutex_);
   auto itr = std::ranges::find_if(topic_list_,[&] (const auto& topic) {
     return topic && IEquals(topic_name,topic->Topic());
   });
@@ -56,34 +57,23 @@ void IPubSubClient::DeleteTopic(const std::string &topic_name) {
   }
 }
 
-void IPubSubClient::ClearTopicList() {
-  std::scoped_lock list_lock(topic_mutex);
-  topic_list_.clear();
-}
-
-
-
-int IPubSubClient::GetUniqueToken() {
-  return unique_token++;
-}
-
-void IPubSubClient::AddSubscription(const std::string &topic_name) {
+void IPubSubClient::AddSubscription(std::string topic_name) {
   const bool exist = std::any_of(subscription_list_.cbegin(), subscription_list_.cend(),
                                  [&] (const std::string& topic)->bool {
                                    return topic_name == topic;
                                  });
   if (!exist) {
-    subscription_list_.emplace_back(topic_name);
+    subscription_list_.emplace_back(std::move(topic_name));
   }
 }
 
-void IPubSubClient::AddSubscriptionFront(const std::string &topic_name) {
+void IPubSubClient::AddSubscriptionFront(std::string topic_name) {
   const bool exist = std::any_of(subscription_list_.cbegin(), subscription_list_.cend(),
                                  [&] (const std::string& topic)->bool {
                                    return topic_name == topic;
                                  });
   if (!exist) {
-    subscription_list_.emplace_front(topic_name);
+    subscription_list_.emplace_front(std::move(topic_name));
   }
 }
 
@@ -124,5 +114,31 @@ const IPubSubClient *IPubSubClient::GetDevice(const std::string &) const {
   return nullptr;
 }
 
+std::string IPubSubClient::VersionAsString() const {
+  switch (Version()) {
+    case ProtocolVersion::Mqtt31:
+      return "MQTT 3.1";
+
+    case ProtocolVersion::Mqtt5:
+      return "MQTT 5.0";
+
+    default:
+      break;
+  }
+  return "MQTT 3.1.1";
+}
+
+void IPubSubClient::PublishTopics() {
+  std::scoped_lock lock(topic_mutex_);
+  for (auto& topic : topic_list_) {
+    if (!topic || !topic->Publish() || !topic->IsUpdated()) {
+      continue;
+    }
+    if (topic->IsUpdated()) {
+      topic->ResetUpdated();
+      topic->DoPublish();
+    }
+  }
+}
 
 } // end namespace mqtt

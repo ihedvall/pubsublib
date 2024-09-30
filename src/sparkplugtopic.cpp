@@ -62,28 +62,6 @@ void SparkplugTopic::DoPublish() {
   }
 }
 
-void SparkplugTopic::DoSubscribe() {
-  MQTTAsync_responseOptions options = MQTTAsync_responseOptions_initializer;
-  options.onSuccess = nullptr; // No check if it sent
-  options.onFailure = OnSubscribeFailure;
-  options.context = this;
-
-  auto* listen = parent_.Listen();
-  if (listen != nullptr && listen->IsActive() && listen->LogLevel() == 3) {
-    listen->ListenText("Subscribe: %s", Topic().c_str() );
-  }
-  const auto subscribe = MQTTAsync_subscribe(parent_.Handle(), Topic().c_str(),
-                                             static_cast<int>(Qos()), &options);
-  if (subscribe != MQTTASYNC_SUCCESS) {
-    LOG_ERROR() << "Subscribe Failed. Topic: " << Topic()
-      << ". Error: " << MQTTAsync_strerror(subscribe);
-    if (listen != nullptr && listen->IsActive()) {
-      listen->ListenText("Subscribe Fail. Topic: %s, Error: %s",
-                         Topic().c_str(), MQTTAsync_strerror(subscribe));
-    }
-  }
-}
-
 void SparkplugTopic::OnSendFailure(void *context, MQTTAsync_failureData *response) {
   auto *topic = reinterpret_cast<SparkplugTopic *>(context);
   if (topic != nullptr) {
@@ -118,25 +96,6 @@ void SparkplugTopic::OnSubscribeFailure(void *context, MQTTAsync_failureData *re
 void SparkplugTopic::OnSubscribe(void *context, MQTTAsync_successData *response) {
   auto *topic = reinterpret_cast<SparkplugTopic *>(context);
   if (topic != nullptr) {
-  }
-}
-
-void SparkplugTopic::ParsePayloadData() {
-  auto* listen = parent_.Listen();
-
-  // First check that it is a Sparkplug B message by checking the namespace.
-  if (Namespace() != kNamespace && !IsValidMessageType()) {
-    if (listen != nullptr && listen->IsActive()) {
-      listen->ListenText("Ignoring Topic: %s", Topic().c_str());
-    }
-    return;
-  }
-  const bool create_metrics = IsBirthMessageType();
-  auto& payload = GetPayload();
-  if (MessageType() == "STATE") {
-    payload.ParseSparkplugJson(create_metrics);
-  } else {
-    payload.ParseSparkplugProtobuf(create_metrics);
   }
 }
 

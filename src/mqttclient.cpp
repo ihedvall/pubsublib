@@ -9,13 +9,12 @@
 
 #include "util/logstream.h"
 #include "util/utilfactory.h"
-#include "util/timestamp.h"
 
 #include "mqtttopic.h"
+#include "sparkplughelper.h"
 
 using namespace std::chrono_literals;
 using namespace util::log;
-using namespace util::time;
 
 namespace {
 
@@ -36,10 +35,7 @@ MqttClient::~MqttClient() {
     if (!topic) {
       continue;
     }
-    auto& value = topic->Value();
-    if (value) {
-      value->SetPublish(nullptr);
-    }
+    topic->SetAllMetricsInvalid();
   }
   listen_.reset();
 }
@@ -47,29 +43,41 @@ MqttClient::~MqttClient() {
 ITopic *MqttClient::CreateTopic() {
 
   auto topic = std::make_unique<MqttTopic>(*this);
-  std::scoped_lock list_lock(topic_mutex);
+  std::scoped_lock list_lock(topic_mutex_);
 
   topic_list_.emplace_back(std::move(topic));
   return topic_list_.back().get();
 }
 
 
-ITopic *MqttClient::AddMetric(const std::shared_ptr<Metric>& value) {
-  auto* topic = CreateTopic(); // Note that this call adds the topic to its list.
-  if ( topic == nullptr) {
+ITopic *MqttClient::AddMetric(const std::shared_ptr<Metric>& metric) {
+  if (!metric || metric->Name().empty()) {
+    LOG_ERROR() << "Cannot add a metric with no name.";
     return nullptr;
   }
-  topic->Topic(value->Name());
+
+  auto* topic = GetTopic(metric->Name()); // Note that this call adds the topic to its list.
+  if ( topic == nullptr) {
+    topic = CreateTopic();
+    if (topic == nullptr) {
+      LOG_ERROR() << "Failed to create a topic. Topic: " <<  metric->Name();
+      return nullptr;
+    }
+    topic->Topic(metric->Name());
+
+    topic->Publish(true);
+  }
 
   // Set default value
-  const auto payload = value->GetMqttString();
-  if (value->IsNull()) {
-    topic->PayloadBody("");
+  auto& payload = topic->GetPayload();
+  const auto text = metric->GetMqttString();
+  if (metric->IsNull()) {
+    payload.StringToBody("");
   } else {
-    topic->PayloadBody(payload);
+    payload.StringToBody(text);
   }
-  value->SetPublish([this] (Metric& value) { OnPublish(value); });
-  topic->Value(value);
+
+  payload.AddMetric(metric);
 
   return topic;
 }
@@ -79,7 +87,22 @@ bool MqttClient::IsConnected() const {
 }
 
 bool MqttClient::Start() {
+  // Create the worker task
+  stop_client_task_ = true;
+  if (work_thread_.joinable()) {
+    work_thread_.join();
+  }
 
+  ResetConnectionLost();
+  client_timer_ = 0;
+  stop_client_task_ = false;
+  work_thread_ = std::thread(&MqttClient::ClientTask, this);
+
+  client_event_.notify_one();
+  return true;
+}
+
+bool MqttClient::CreateClient() {
   if (listen_ && !Name().empty()) {
     listen_->PreText(Name());
   }
@@ -107,9 +130,12 @@ bool MqttClient::Start() {
     listen_->ListenText("Creating client");
   }
 
-  const auto create = MQTTAsync_create(&handle_, connect_string.str().c_str(),
-                                       name_.c_str(),
-                                 MQTTCLIENT_PERSISTENCE_NONE, nullptr);
+  MQTTAsync_createOptions create_options = MQTTAsync_createOptions_initializer5;
+
+  const auto create = MQTTAsync_createWithOptions(&handle_, connect_string.str().c_str(),
+                                       Name().c_str(),
+                                 MQTTCLIENT_PERSISTENCE_NONE, nullptr,
+                                 Version() == ProtocolVersion::Mqtt5 ? &create_options : nullptr);
   if (create != MQTTASYNC_SUCCESS) {
     std::ostringstream err;
     err << "Failed to create the MQTT handle.";
@@ -138,23 +164,34 @@ bool MqttClient::Start() {
     return false;
   }
   if (listen_->IsActive() && listen_) {
-    listen_->ListenText("Started client");
+    listen_->ListenText("Created client");
   }
-  return SendConnect();
+  return true;
 }
 
 bool MqttClient::SendConnect() {
 
   // Reset the connection lost to detect any failing startup
   ResetConnectionLost();
+  ResetDelivered();
 
   MQTTAsync_connectOptions connect_options = MQTTAsync_connectOptions_initializer;
-  connect_options.keepAliveInterval = 60; // 60 seconds between keep alive messages
-  connect_options.cleansession = MQTTASYNC_TRUE;
-  connect_options.connectTimeout = 10; // Wait max 10 seconds on connect.
+  if (Version() == ProtocolVersion::Mqtt5) {
+    connect_options = MQTTAsync_connectOptions_initializer5;
+  }
+  connect_options.keepAliveInterval = 10; // 10 seconds between keep alive messages
+  // connect_options.cleansession = MQTTASYNC_TRUE;
+  connect_options.connectTimeout = 5; // Wait max 5 seconds on connect.
   connect_options.onSuccess = OnConnect;
   connect_options.onFailure = OnConnectFailure;
   connect_options.context = this;
+  if (Version() == ProtocolVersion::Mqtt5) {
+    connect_options.MQTTVersion = MQTTVERSION_5;
+    connect_options.onSuccess = nullptr;
+    connect_options.onFailure = nullptr;
+    connect_options.onSuccess5 = OnConnect5;
+    connect_options.onFailure5 = OnConnectFailure5;
+  }
 
   const auto connect = MQTTAsync_connect(handle_, &connect_options);
   if (connect != MQTTASYNC_SUCCESS) {
@@ -171,24 +208,24 @@ bool MqttClient::SendConnect() {
   return true;
 }
 
-bool MqttClient::Stop() {
-  if (!IsConnected()) {
-    if (listen_ && listen_->IsActive() && listen_->LogLevel() == 3) {
-      listen_->ListenText("Stop ignored due to not connected to server");
-    }
-    return true;
-  }
+bool MqttClient::SendDisconnect() {
 
-  if (listen_ && listen_->IsActive() && listen_->LogLevel() == 3) {
-    listen_->ListenText("Disconnecting");
-  }
   ResetConnectionLost();
+  ResetDelivered();
   MQTTAsync_disconnectOptions disconnect_options = MQTTAsync_disconnectOptions_initializer;
-  disconnect_options.onSuccess = OnDisconnect;
-  disconnect_options.onFailure = OnDisconnectFailure;
+  if (Version() == ProtocolVersion::Mqtt5) {
+    disconnect_options = MQTTAsync_disconnectOptions_initializer5;
+    disconnect_options.onSuccess = nullptr;
+    disconnect_options.onFailure = nullptr;
+    disconnect_options.onSuccess5 = OnDisconnect5;
+    disconnect_options.onFailure5 = OnDisconnectFailure5;
+  } else {
+    disconnect_options.onSuccess = OnDisconnect;
+    disconnect_options.onFailure = OnDisconnectFailure;
+  }
   disconnect_options.context = this;
   disconnect_options.timeout = 5000;
-  disconnect_ready_ = false;
+
   const auto disconnect = MQTTAsync_disconnect(handle_, &disconnect_options);
   if (disconnect != MQTTASYNC_SUCCESS) {
     std::ostringstream err;
@@ -201,20 +238,24 @@ bool MqttClient::Stop() {
     if (listen_ && listen_->IsActive()) {
       listen_->ListenText("%s", err.str().c_str());
     }
+
   }
-  // Add a delay before deleting the async context handle so the disconnect get through.
-  // The timeout is set to 5 seconds so wait max 10 seconds for a reply.
-  for (size_t timeout = 0;
-       !disconnect_ready_ && disconnect == MQTTASYNC_SUCCESS && timeout < 1'000;
-       ++timeout) {
-    std::this_thread::sleep_for(10ms);
+  return disconnect == MQTTASYNC_SUCCESS;
+}
+
+bool MqttClient::Stop() {
+  stop_client_task_ = true;
+  client_event_.notify_one();
+  if (work_thread_.joinable()) {
+    work_thread_.join();
   }
-  if (listen_ && listen_->IsActive() && listen_->LogLevel() == 3) {
-    listen_->ListenText("Disconnected");
+  if (handle_ != nullptr) {
+    MQTTAsync_destroy(&handle_);
+    handle_ = nullptr;
   }
-  MQTTAsync_destroy(&handle_);
-  handle_ = nullptr;
+
   return true;
+
 }
 
 void MqttClient::ConnectionLost(const std::string& cause) {
@@ -231,56 +272,97 @@ void MqttClient::ConnectionLost(const std::string& cause) {
 }
 
 void MqttClient::Message(const std::string& topic_name, const MQTTAsync_message& message) {
-  ResetConnectionLost();
-  const auto qos = static_cast<QualityOfService>(message.qos);
-  std::vector<uint8_t> payload(message.payloadlen, 0);
-  if (message.payload != nullptr && message.payloadlen > 0) {
-    std::memcpy(payload.data(), message.payload, message.payloadlen);
+  if (topic_name.empty()) {
+    return;
   }
   auto* topic = GetTopic(topic_name);
   if (topic == nullptr) {
+    // The topic and its value do not exist. Create a topic and a metric for this topic
+
     topic = CreateTopic();
-    topic->Topic(topic_name);
+    if (topic != nullptr) {
+      topic->Topic(topic_name);
+      topic->Publish(false);
+    }
+  }
+  if (topic == nullptr) {
+    LOG_ERROR() << "Failed to create topic. Topic: " << topic_name;
+    return;
   }
 
-  topic->PayloadBody(payload);
-  topic->Qos(qos);
-  topic->Retained(message.retained == 1);
-  const auto& value = topic->Value();
-  if (value) {
-    const auto now = TimeStampToNs(); // MQTT doesn't supply a network time so use the computer time.
-    value->Timestamp(now);
-    const auto text = topic->PayloadBody<std::string>();
-    value->Value(text);
-    value->OnUpdate();
+  auto& payload = topic->GetPayload();
+  auto& body = payload.Body();
+  try {
+    body.resize(message.payloadlen, 0);
+    if (message.payload != nullptr && message.payloadlen > 0) {
+      std::memcpy(body.data(), message.payload, message.payloadlen);
+    }
+  } catch(const std::exception& err) {
+    LOG_ERROR() << "Failed to parse payload. Topic: " << topic_name << ", Error: " << err.what();
+    return;
   }
+
+  auto metric = payload.GetMetric(topic_name);
+  if (!metric) {
+    metric = std::make_shared<Metric>(topic_name);
+    metric->Timestamp(SparkplugHelper::NowMs());
+    metric->Type(MetricType::String);
+  }
+
+  payload.Timestamp(SparkplugHelper::NowMs(), true);
+  metric->Value(payload.BodyToString());
+  metric->FireOnMessage();
+
+  ResetConnectionLost();
+  topic->Qos(static_cast<QualityOfService>(message.qos));
+  topic->Retained(message.retained == 1);
 
   if (listen_ && listen_->IsActive() && listen_->LogLevel() != 1) {
-    listen_->ListenText("Sub-Topic: %s, Value: %s", topic_name.c_str(),
-                                topic->PayloadBody<std::string>().c_str());
+    listen_->ListenText("Message: %s, Value: %s", topic_name.c_str(),
+                                payload.BodyToString().c_str());
   }
 }
 
-void MqttClient::DeliveryComplete(MQTTAsync_token token) {
+void MqttClient::DeliveryComplete(MQTTAsync_token ) {
   ResetConnectionLost();
 }
 
+void MqttClient::Connect(const MQTTAsync_successData& response) {
+  const auto& connect = response.alt.connect;
+  const std::string server_url =  connect.serverURI != nullptr ? connect.serverURI : "";
+  if (Name().empty()) {
+    Name(server_url);
+  }
 
-void MqttClient::Connect(const MQTTAsync_successData* response) {
+  const int version = connect.MQTTVersion;
+  switch (version) {
+    case MQTTVERSION_3_1:
+      Version(ProtocolVersion::Mqtt31);
+      break;
 
-  if (response != nullptr && listen_ && listen_->IsActive()) {
-    const std::string server_url = response->alt.connect.serverURI;
-    const int version = response->alt.connect.MQTTVersion;
-    const int session_present = response->alt.connect.sessionPresent;
+    case MQTTVERSION_5:
+      Version(ProtocolVersion::Mqtt5);
+      break;
+
+    case MQTTVERSION_3_1_1:
+    case MQTTVERSION_DEFAULT:
+    default:
+      Version(ProtocolVersion::Mqtt311);
+      break;
+
+  }
+  const int session_present = connect.sessionPresent;
+  if (listen_ && listen_->IsActive()) {
     listen_->ListenText("Connected: Server: %s, Version: %d, Session: %d",
                                 server_url.c_str(), version, session_present);
   }
   ResetConnectionLost();
-  DoConnect();
+  SetDelivered();
+  client_event_.notify_one();
 }
 
 
-void MqttClient::ConnectFailure( MQTTAsync_failureData* response) {
+void MqttClient::ConnectFailure(const  MQTTAsync_failureData* response) {
   std::ostringstream err;
   err << "Connect failure.";
   if (response != nullptr) {
@@ -295,45 +377,143 @@ void MqttClient::ConnectFailure( MQTTAsync_failureData* response) {
     listen_->ListenText("%s", err.str().c_str());
   }
   SetConnectionLost();
+  SetDelivered();
+  client_event_.notify_one();
 }
 
-void MqttClient::Disconnect(MQTTAsync_successData* response) {
-  disconnect_ready_ = true;
+void MqttClient::Connect5(const MQTTAsync_successData5& response) {
+  const auto& connect = response.alt.connect;
+  const std::string server_url =  connect.serverURI != nullptr ? connect.serverURI : "";
+  if (Name().empty()) {
+    Name(server_url);
+  }
+
+  const int version = connect.MQTTVersion;
+  switch (version) {
+    case MQTTVERSION_3_1:
+      Version(ProtocolVersion::Mqtt31);
+      break;
+
+    case MQTTVERSION_5:
+      Version(ProtocolVersion::Mqtt5);
+      break;
+
+    case MQTTVERSION_3_1_1:
+    case MQTTVERSION_DEFAULT:
+    default:
+      Version(ProtocolVersion::Mqtt311);
+      break;
+
+  }
+  const int session_present = connect.sessionPresent;
+  if (listen_ && listen_->IsActive()) {
+    listen_->ListenText("Connected: Server: %s, Version: %d, Session: %d",
+                        server_url.c_str(), version, session_present);
+  }
   ResetConnectionLost();
+  SetDelivered();
+  client_event_.notify_one();
 }
 
-void MqttClient::DisconnectFailure(MQTTAsync_failureData* response) {
+
+void MqttClient::ConnectFailure5(const MQTTAsync_failureData5* response) {
+  std::ostringstream err;
+  err << "Connect failure.";
   if (response != nullptr) {
-    std::ostringstream err;
-    err << "Disconnect failure.";
-    const int code = response->code;
+    const auto code = response->code;
     const auto* cause = MQTTAsync_strerror(code);
     if (cause != nullptr && strlen(cause) > 0) {
       err << " Error: " << cause;
     }
 
-    if (listen_ && listen_->IsActive()) {
-      listen_->ListenText("%s", err.str().c_str());
-    }
-    SetConnectionLost();
   }
-  disconnect_ready_ = true;
+  if (listen_ && listen_->IsActive()) {
+    listen_->ListenText("%s", err.str().c_str());
+  }
+  SetConnectionLost();
+  SetDelivered();
+  client_event_.notify_one();
+}
+
+void MqttClient::SubscribeFailure(const MQTTAsync_failureData &response) {
+  std::ostringstream err;
+  err << "Subscribe Failure. Error: " << MQTTAsync_strerror(response.code);
+  if (response.message != nullptr) {
+    err << ". Message: " << response.message;
+  }
+  if (listen_ && listen_->IsActive()) {
+    listen_->ListenText("%s", err.str().c_str() );
+  }
+  LOG_ERROR() << err.str();
+}
+
+void MqttClient::SubscribeFailure5(const MQTTAsync_failureData5 &response) {
+  std::ostringstream err;
+  err << "Subscribe Failure. Error: " << MQTTAsync_strerror(response.code);
+  if (response.message != nullptr) {
+    err << ". Message: " << response.message;
+  }
+  if (listen_ && listen_->IsActive()) {
+    listen_->ListenText("%s", err.str().c_str() );
+  }
+  LOG_ERROR() << err.str();
+}
+
+void MqttClient::Disconnect(const MQTTAsync_successData*) {
+  SetDelivered();
+  ResetConnectionLost();
+  client_event_.notify_one();
+}
+
+void MqttClient::DisconnectFailure(const MQTTAsync_failureData* response) {
+  std::ostringstream err;
+  err << "Disconnect failure.";
+  if (response != nullptr) {
+    const int code = response->code;
+    const auto* cause = MQTTAsync_strerror(code);
+    if (cause != nullptr && strlen(cause) > 0) {
+      err << " Error: " << cause;
+    }
+  }
+
+  if (listen_ && listen_->IsActive()) {
+    listen_->ListenText("%s", err.str().c_str());
+  }
+  SetConnectionLost();
+  SetDelivered();
+  client_event_.notify_one();
+}
+
+void MqttClient::Disconnect5(const MQTTAsync_successData5*) {
+  SetDelivered();
+  ResetConnectionLost();
+  client_event_.notify_one(); // Speed up the disconnect
+}
+
+void MqttClient::DisconnectFailure5(const MQTTAsync_failureData5* response) {
+  std::ostringstream err;
+  err << "Disconnect failure.";
+  if (response != nullptr) {
+    const int code = response->code;
+    const auto* cause = MQTTAsync_strerror(code);
+
+    if (cause != nullptr && strlen(cause) > 0) {
+      err << " Error: " << cause << ".";
+    }
+    if (response->message != nullptr) {
+      err << " Message: " << response->message;
+    }
+  }
+
+  if (listen_ && listen_->IsActive()) {
+    listen_->ListenText("%s", err.str().c_str());
+  }
+  SetConnectionLost();
+  SetDelivered();
+  client_event_.notify_one();
 }
 
 
-
-void MqttClient::DoConnect() {
-  for (auto& topic : topic_list_) {
-    if (!topic) {
-      continue;
-    }
-    if (topic->Publish() && topic->Updated()) {
-      topic->DoPublish();
-    } else if (!topic->Publish()) {
-      topic->DoSubscribe();
-    }
-  }
-}
 
 void MqttClient::OnConnectionLost(void *context, char *cause) {
   auto *client = reinterpret_cast<pub_sub::MqttClient *>(context);
@@ -347,7 +527,7 @@ void MqttClient::OnConnectionLost(void *context, char *cause) {
 }
 
 int MqttClient::OnMessageArrived(void* context, char* topic_name, int topicLen, MQTTAsync_message* message) {
-  auto *client = reinterpret_cast<pub_sub::MqttClient *>(context);
+  auto *client = reinterpret_cast<MqttClient *>(context);
   const std::string topic_id = topic_name != nullptr && topicLen > 0 ? topic_name : "";
 
   if (client != nullptr && message != nullptr && !topic_id.empty()) {
@@ -364,16 +544,16 @@ int MqttClient::OnMessageArrived(void* context, char* topic_name, int topicLen, 
 }
 
 void MqttClient::OnDeliveryComplete(void *context, MQTTAsync_token token) {
-  auto *client = reinterpret_cast<pub_sub::MqttClient *>(context);
+  auto *client = reinterpret_cast<MqttClient *>(context);
   if (client != nullptr) {
     client->DeliveryComplete(token);
   }
 }
 
 void MqttClient::OnConnect(void* context, MQTTAsync_successData* response) {
-  auto *client = reinterpret_cast<pub_sub::MqttClient *>(context);
+  auto *client = reinterpret_cast<MqttClient *>(context);
   if (client != nullptr && response != nullptr) {
-    client->Connect(response);
+    client->Connect(*response);
   }
 }
 
@@ -381,6 +561,34 @@ void MqttClient::OnConnectFailure(void* context, MQTTAsync_failureData* response
   auto *client = reinterpret_cast<pub_sub::MqttClient *>(context);
   if (client != nullptr) {
     client->ConnectFailure(response);
+  }
+}
+
+void MqttClient::OnConnect5(void* context, MQTTAsync_successData5* response) {
+  auto *client = reinterpret_cast<MqttClient *>(context);
+  if (client != nullptr && response != nullptr) {
+    client->Connect5(*response);
+  }
+}
+
+void MqttClient::OnConnectFailure5(void* context, MQTTAsync_failureData5* response) {
+  auto *client = reinterpret_cast<MqttClient *>(context);
+  if (client != nullptr) {
+    client->ConnectFailure5(response);
+  }
+}
+
+void MqttClient::OnSubscribeFailure(void *context, MQTTAsync_failureData *response) {
+  auto *client = reinterpret_cast<MqttClient *>(context);
+  if (client != nullptr && response != nullptr) {
+    client->SubscribeFailure(*response);
+  }
+}
+
+void MqttClient::OnSubscribeFailure5(void *context, MQTTAsync_failureData5 *response) {
+  auto *client = reinterpret_cast<MqttClient *>(context);
+  if (client != nullptr && response != nullptr) {
+    client->SubscribeFailure5(*response);
   }
 }
 
@@ -397,21 +605,204 @@ void MqttClient::OnDisconnectFailure(void* context, MQTTAsync_failureData* respo
     client->DisconnectFailure(response);
   }
 }
-
-void MqttClient::OnPublish(Metric &value) {
-  auto* topic = GetTopic(value.Name());
-  if (topic == nullptr) {
-    return;
+void MqttClient::OnDisconnect5(void* context, MQTTAsync_successData5* response) {
+  auto *client = reinterpret_cast<pub_sub::MqttClient *>(context);
+  if (client != nullptr) {
+    client->Disconnect5(response);
   }
-  const auto payload_string = value.GetMqttString();
-  topic->PayloadBody(payload_string);
 }
+
+void MqttClient::OnDisconnectFailure5(void* context, MQTTAsync_failureData5* response) {
+  auto *client = reinterpret_cast<pub_sub::MqttClient *>(context);
+  if (client != nullptr) {
+    client->DisconnectFailure5(response);
+  }
+}
+
 
 bool MqttClient::IsOnline() const {
-  return IsConnected();
+  return client_state_ == ClientState::Online;
 }
+
 bool MqttClient::IsOffline() const {
-  return !IsConnected();
+  return client_state_ == ClientState::Idle;
 }
+
+void MqttClient::ClientTask() {
+  client_timer_ = 0;
+  client_state_ = ClientState::Idle;
+  if (handle_ != nullptr) {
+    MQTTAsync_destroy(&handle_);
+    handle_ = nullptr;
+  }
+
+  while (!stop_client_task_) {
+    std::unique_lock client_lock(client_mutex_);
+    client_event_.wait_for(client_lock, 100ms);
+
+    switch (client_state_) {
+      case ClientState::Idle: // Wait for in-service command
+        DoIdle();
+        break;
+
+      case ClientState::WaitOnConnect: // Wait for in-service command
+        DoWaitOnConnect();
+        break;
+
+      case ClientState::Online:
+        DoOnline();
+        break;
+
+      case ClientState::WaitOnDisconnect:
+        DoWaitOnDisconnect();
+        break;
+
+      default: // Invalid/Unknown state
+        client_timer_ = SparkplugHelper::NowMs() + 10'000;
+        client_state_ = ClientState::Idle;
+        break;
+    }
+  }
+  // Need to send disconnect or wait on the disconnect
+  if (client_state_ != ClientState::Idle) {
+    if (!IsConnected()) {
+      if (listen_ && listen_->IsActive()) {
+        listen_->ListenText("Stop ignored due to not connected to server");
+      }
+    } else {
+      if (listen_ && listen_->IsActive()) {
+        listen_->ListenText("Disconnecting");
+      }
+      if (client_state_ != ClientState::WaitOnDisconnect) {
+        SendDisconnect();
+      }
+      // Wait for 5s for the disconnect to be delivered
+      for (size_t timeout = 0;
+           IsConnectionLost() && timeout < 50;
+           ++timeout) {
+        std::this_thread::sleep_for(100ms);
+      }
+
+      if (listen_ && listen_->IsActive()) {
+        listen_->ListenText("Disconnected");
+      }
+    }
+  }
+
+  if (handle_ != nullptr) {
+    MQTTAsync_destroy(&handle_);
+    handle_ = nullptr;
+  }
+
+}
+
+void MqttClient::StartSubscription() {
+  for (const std::string& topic : subscription_list_ ) {
+    auto qos = DefaultQualityOfService();
+
+    MQTTAsync_responseOptions options = MQTTAsync_responseOptions_initializer;
+    if (Version() == ProtocolVersion::Mqtt5) {
+      options.onSuccess5 = nullptr; // No need of successful subscription
+      options.onFailure5 = OnSubscribeFailure5;
+    } else {
+      options.onSuccess = nullptr;
+      options.onFailure = OnSubscribeFailure;
+    }
+    options.context = this;
+
+
+    if (listen_ && listen_->IsActive()) {
+      listen_->ListenText("Subscribe: %s", topic.c_str());
+    }
+    const auto subscribe = MQTTAsync_subscribe(handle_, topic.c_str(),
+                                               static_cast<int>(DefaultQualityOfService()), &options);
+    if (subscribe != MQTTASYNC_SUCCESS) {
+      LOG_ERROR() << "Subscription Failed. Topic: " << topic << ". Error: " << MQTTAsync_strerror(subscribe);
+    }
+  }
+
+}
+
+void MqttClient::DoIdle() {
+  const auto now = SparkplugHelper::NowMs();
+  const bool timeout = now >= client_timer_;
+
+  // Destroy any previously created context/handle.
+  if (handle_ != nullptr) {
+    MQTTAsync_destroy(&handle_);
+    handle_ = nullptr;
+  }
+
+  // Check the retry timeout first (10s)
+  // Check if in service
+  if (!InService() ) {
+    client_timer_ = 0; // Fiz so it starts directly when on-line is requested
+    return;
+  }
+  if (!timeout) { // Retry timer upon connect failure
+    return;
+  }
+
+  // In-service create a communication context/handle and connect
+  // to the MQTT server.
+  const auto create = CreateClient();
+  if (!create) {
+    client_timer_ = now + 10'000; // 10 second to next create try
+    return;
+  }
+
+  const auto connect = SendConnect();
+  if (!connect) {
+    client_timer_ = now + 10'000; // 10 second to next create try
+    return;
+  }
+
+  // Switch state and wait for connection
+  client_timer_ = now + 5'000; // Wait 5 second for connection
+  client_state_ = ClientState::WaitOnConnect;
+}
+
+void MqttClient::DoWaitOnConnect() {
+  const auto now = SparkplugHelper::NowMs();
+  const bool timeout = now >= client_timer_;
+
+  // Connection timeout
+  if (timeout) {
+    client_timer_ = now + 10'000; // Retry in 10 seconds
+    client_state_ = ClientState::Idle;
+    return;
+  }
+
+  // Check if connected and delivered.
+  if (!IsConnected() || !IsDelivered()) {
+    return;
+  }
+
+  // Start subscriptions and publish the topics for this client.
+  // We will not check that it is delivered.
+  StartSubscription();
+  client_state_ = ClientState::Online;
+}
+
+void MqttClient::DoOnline() {
+  const auto now = SparkplugHelper::NowMs();
+  if (stop_client_task_ || !InService() ) {
+    SendDisconnect();
+    client_timer_ = now + 5'000;
+    client_state_ = ClientState::WaitOnDisconnect;
+  } else {
+    PublishTopics();
+  }
+}
+
+void MqttClient::DoWaitOnDisconnect() {
+  const auto now = SparkplugHelper::NowMs();
+  const bool timeout = now >= client_timer_;
+  if (timeout || IsDelivered() ) {
+    client_timer_ = now + 10'000; // Retry in 10s
+    client_state_ = ClientState::Idle;
+  }
+}
+
 
 } // end namespace

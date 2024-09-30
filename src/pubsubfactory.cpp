@@ -8,6 +8,7 @@
 #include "detectbroker.h"
 #include "sparkplugnode.h"
 #include "sparkplughost.h"
+#include "pubsubworkflowfactory.h"
 
 namespace pub_sub {
 
@@ -18,6 +19,13 @@ std::unique_ptr<IPubSubClient> PubSubFactory::CreatePubSubClient(PubSubType type
     case PubSubType::Mqtt3Client: {
       auto mqtt_client = std::make_unique<MqttClient>();
       mqtt_client->Version(ProtocolVersion::Mqtt311);
+      client = std::move(mqtt_client);
+      break;
+    }
+
+    case PubSubType::Mqtt5Client: {
+      auto mqtt_client = std::make_unique<MqttClient>();
+      mqtt_client->Version(ProtocolVersion::Mqtt5);
       client = std::move(mqtt_client);
       break;
     }
@@ -54,6 +62,11 @@ std::shared_ptr<Metric> PubSubFactory::CreateMetric(const std::string_view &name
 std::shared_ptr<Metric> PubSubFactory::CreateMetric(const std::string &name) {
   auto value = std::make_shared<Metric>(name);
   return value;
+}
+
+workflow::IRunnerFactory &PubSubFactory::GetWorkflowFactory() {
+  static PubSubWorkflowFactory instance;
+  return instance;
 }
 
 } // pub_sub

@@ -17,9 +17,7 @@ class SparkplugTopic : public ITopic {
   SparkplugTopic() = delete;
 
   void DoPublish() override;
-  void DoSubscribe() override;
 
-  void ParsePayloadData() override;
  private:
   SparkplugNode& parent_;
 

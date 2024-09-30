@@ -63,76 +63,25 @@ const std::string &ITopic::Topic() const {
   return topic_;
 }
 
-template<>
-void ITopic::PayloadBody(const std::vector<uint8_t>& payload)
-{  if (content_type_.empty()) {
-    content_type_ = "application/octet-stream";
-  }
-  // 1. Lock the topic data from updating.
-  // 2. Check if the new payload differs from previous
-  // 3. If differs publish the payload data.
+bool ITopic::IsUpdated() const {
   std::lock_guard lock(topic_mutex_);
-  if (payload != payload_.Body() || update_counter_ == 0) {
-    UpdatePayload(payload);
-  }
+  const auto& payload = GetPayload();
+  const auto& metric_list = payload.Metrics();
+  return std::any_of(metric_list.cbegin(), metric_list.cend(),
+                     [&] (const auto& metric ) -> bool {
+    return metric.second && metric.second->IsUpdated();
+   } );
 }
 
-template<>
-void ITopic::PayloadBody(const bool& payload)
-{
-  const std::string temp = payload ? "1": "0";
-  payload_.StringToBody(temp);
-}
-
-template<>
-void ITopic::PayloadBody(const float& payload) {
-  payload_.StringToBody(util::string::FloatToString(payload));
-}
-
-template<>
-void ITopic::PayloadBody(const double& payload) {
-  payload_.StringToBody(util::string::DoubleToString(payload));
-}
-
-template<>
-std::vector<uint8_t> ITopic::PayloadBody() const {
+void ITopic::ResetUpdated() const {
   std::lock_guard lock(topic_mutex_);
-  return payload_.Body();
-}
-
-template<>
-bool ITopic::PayloadBody() const {
-  std::lock_guard lock(topic_mutex_);
-  const auto& body = payload_.Body();
-  if (body.empty()) {
-    return false;
+  const auto& payload = GetPayload();
+  const auto& metric_list = payload.Metrics();
+  for (const auto& [name,metric] : metric_list) {
+    if (metric) {
+      metric->ResetUpdated();
+    }
   }
-  switch (body[0]) {
-    case 1:
-    case '1':
-    case 'T':
-    case 't':
-    case 'Y':
-    case 'y':
-      return true;
-    default:
-      break;
-  }
-  return false;
-}
-
-void ITopic::UpdatePayload(const std::vector<uint8_t> &payload) {
-  payload_.Body(payload);
-  updated_ = true;
-  ++update_counter_;
-  if (publish_) {
-    DoPublish();
-  }
-}
-
-bool ITopic::Updated() const {
-  std::lock_guard lock(topic_mutex_);
-  return updated_;
 }
 
 bool ITopic::IsWildcard() const {
