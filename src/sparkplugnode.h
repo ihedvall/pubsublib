@@ -39,13 +39,7 @@ class SparkplugNode : public IPubSubClient {
 
   MQTTAsync& Handle() { return handle_; }
   util::log::IListen* Listen() { return listen_.get(); }
-
-
-
  protected:
-
-
-
   MQTTAsync handle_ = nullptr;
   std::unique_ptr<util::log::IListen> listen_;
   std::condition_variable node_event_; ///< Can be used to speed up the scanning of the thread

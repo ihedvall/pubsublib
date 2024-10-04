@@ -5,15 +5,15 @@
 
 #pragma once
 
-#include <workflow/irunnerfactory.h>
-#include <workflow/irunner.h>
+#include <workflow/itaskfactory.h>
+#include <workflow/itask.h>
 
 namespace pub_sub {
 
-class PubSubWorkflowFactory : public workflow::IRunnerFactory {
+class PubSubWorkflowFactory : public workflow::ITaskFactory {
  public:
   PubSubWorkflowFactory();
-  [[nodiscard]] std::unique_ptr<workflow::IRunner> CreateRunner(const workflow::IRunner& source) const override;
+  [[nodiscard]] std::unique_ptr<workflow::ITask> CreateRunner(const workflow::ITask& source) const override;
 
 };
 

@@ -163,7 +163,7 @@ void SparkplugNode::Connect(const MQTTAsync_successData &response) {
       break;
 
     case MQTTVERSION_5:
-      Version(ProtocolVersion::Mqtt311);
+      Version(ProtocolVersion::Mqtt5);
       break;
 
     case MQTTVERSION_3_1_1:
@@ -1102,7 +1102,7 @@ void SparkplugNode::HandleNodeDeathMessage(const std::string &group_name,
   auto *birth_topic = node->GetTopicByMessageType(kNodeBirth.data());
   auto *death_topic = node->GetTopicByMessageType(kNodeDeath.data());
   if (death_topic == nullptr || death_topic->Publish() || birth_topic == nullptr ) {
-    // The message is handle by the node/device thread and polling of devices.
+    // The message is handled by the node/device thread and polling of devices.
     return;
   }
 
@@ -1176,7 +1176,7 @@ void SparkplugNode::HandleNodeDataMessage(const std::string &group_name,
   }
   auto *birth_topic = node->GetTopicByMessageType(kNodeBirth.data());
 
-  // Update metrics if the topic not is publish.
+  // Update metrics if the topic not is published.
   if (birth_topic == nullptr || birth_topic->Publish()) {
     // Do not update if the topic is marked as publish.
     // This is not an error.

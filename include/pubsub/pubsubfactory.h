@@ -8,7 +8,7 @@
 #include "pubsub/ipubsubclient.h"
 
 namespace workflow {
-class IRunnerFactory;
+class ITaskFactory;
 }
 
 namespace pub_sub {
@@ -33,7 +33,7 @@ class PubSubFactory {
  * @return Smart pointer to a Pub/Sub client source.
  */
   static std::unique_ptr<IPubSubClient> CreatePubSubClient(PubSubType type);
-  static workflow::IRunnerFactory& GetWorkflowFactory();
+  static workflow::ITaskFactory& GetWorkflowFactory();
 
   static std::shared_ptr<Metric> CreateMetric(const std::string_view& name);
   static std::shared_ptr<Metric> CreateMetric(const std::string& name);

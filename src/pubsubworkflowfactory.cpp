@@ -10,7 +10,7 @@ using namespace workflow;
 namespace pub_sub {
 
 PubSubWorkflowFactory::PubSubWorkflowFactory()
-: IRunnerFactory() {
+: ITaskFactory() {
   name_ = "Pub/Sub Factory";
   description_ = "Public/Subscribe workflow task templates.";
 
@@ -18,8 +18,8 @@ PubSubWorkflowFactory::PubSubWorkflowFactory()
 
 
 }
-std::unique_ptr<workflow::IRunner> PubSubWorkflowFactory::CreateRunner(const workflow::IRunner &source) const {
-  std::unique_ptr<IRunner> task;
+std::unique_ptr<workflow::ITask> PubSubWorkflowFactory::CreateRunner(const workflow::ITask &source) const {
+  std::unique_ptr<ITask> task;
   const auto& template_name = source.Template();
   return task;
 }

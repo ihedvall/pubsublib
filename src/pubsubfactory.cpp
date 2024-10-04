@@ -64,7 +64,7 @@ std::shared_ptr<Metric> PubSubFactory::CreateMetric(const std::string &name) {
   return value;
 }
 
-workflow::IRunnerFactory &PubSubFactory::GetWorkflowFactory() {
+workflow::ITaskFactory &PubSubFactory::GetWorkflowFactory() {
   static PubSubWorkflowFactory instance;
   return instance;
 }
