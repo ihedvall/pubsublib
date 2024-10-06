@@ -30,6 +30,7 @@ class SparkplugDevice : public IPubSubClient {
   void Poll();
   void SetAllMetricsInvalid();
 
+
  private:
   SparkplugNode& parent_;
   uint64_t sequence_number_ = 0; ///< Birth/Death sequence number

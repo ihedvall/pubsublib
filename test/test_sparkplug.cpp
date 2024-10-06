@@ -99,6 +99,7 @@ TEST_F(TestSparkplug, TestPrimaryHost) {
   host->Broker(kBroker);
   host->Port(kBasicPort);
   host->Name(kHost.data());
+  host->Version(ProtocolVersion::Mqtt5);
   host->InService(false);
 
   const bool start = host->Start();
@@ -188,6 +189,7 @@ TEST_F(TestSparkplug, TestNode) {
   node->Port(kBasicPort);
   node->Name(kNode.data());
   node->GroupId(kGroup.data());
+  node->Version(ProtocolVersion::Mqtt5);
   node->InService(false);
 
   auto* device1 = node->CreateDevice("Device1");

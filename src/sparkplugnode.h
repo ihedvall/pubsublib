@@ -39,6 +39,8 @@ class SparkplugNode : public IPubSubClient {
 
   MQTTAsync& Handle() { return handle_; }
   util::log::IListen* Listen() { return listen_.get(); }
+
+  uint64_t NextSequenceNumber() { return sequence_number_++; }
  protected:
   MQTTAsync handle_ = nullptr;
   std::unique_ptr<util::log::IListen> listen_;
@@ -51,6 +53,7 @@ class SparkplugNode : public IPubSubClient {
   std::string server_uri_;
   int server_version_ = 0;
   int server_session_ = -1;
+  MQTTAsync_SSLOptions ssl_options_ = MQTTAsync_SSLOptions_initializer;
 
   void ResetDelivered() { delivered_ = false;}
   void SetDelivered() { delivered_ = true; }
@@ -64,31 +67,53 @@ class SparkplugNode : public IPubSubClient {
 
   void Connect(const MQTTAsync_successData& response);
   void ConnectFailure(const MQTTAsync_failureData& response);
+  void Connect5(const MQTTAsync_successData5& response);
+  void ConnectFailure5(const MQTTAsync_failureData5& response);
   void ConnectionLost(const std::string& reason);
   void Message(const std::string& topic_name, const MQTTAsync_message& message);
-  void DeliveryComplete(MQTTAsync_token token);
-  void SubscribeFailure(MQTTAsync_failureData& response);
-  void Disconnect(MQTTAsync_successData& response);
-  void DisconnectFailure( MQTTAsync_failureData& response);
 
+
+  void SubscribeFailure(const MQTTAsync_failureData& response);
+  void SubscribeFailure5(const MQTTAsync_failureData5& response);
+
+  void Disconnect( const MQTTAsync_successData& response);
+  void DisconnectFailure( const MQTTAsync_failureData& response);
+  void Disconnect5( const MQTTAsync_successData5& response);
+  void DisconnectFailure5( const MQTTAsync_failureData5& response);
   static void OnConnectionLost(void *context, char *cause);
   static int OnMessageArrived(void* context, char* topic_name, int topicLen, MQTTAsync_message* message);
-  static void OnDeliveryComplete(void *context, MQTTAsync_token token);
+
   static void OnConnect(void* context, MQTTAsync_successData* response);
   static void OnConnectFailure(void* context, MQTTAsync_failureData* response);
+  static void OnConnect5(void* context, MQTTAsync_successData5* response);
+  static void OnConnectFailure5(void* context, MQTTAsync_failureData5* response);
+
   static void OnSubscribeFailure(void *context, MQTTAsync_failureData *response);
+  static void OnSubscribeFailure5(void *context, MQTTAsync_failureData5 *response);
+
   static void OnSubscribe(void *context, MQTTAsync_successData *response);
   static void OnDisconnect(void* context, MQTTAsync_successData* response);
   static void OnDisconnectFailure(void* context, MQTTAsync_failureData* response);
+  static void OnDisconnect5(void* context, MQTTAsync_successData5* response);
+  static void OnDisconnectFailure5(void* context, MQTTAsync_failureData5* response);
 
   [[nodiscard]] IPubSubClient* CreateDevice(const std::string& device_name) override;
   void DeleteDevice(const std::string& device_name) override;
   [[nodiscard]] IPubSubClient* GetDevice(const std::string& device_name) override;
   [[nodiscard]] const IPubSubClient* GetDevice(const std::string& device_name) const override;
+
+  void InitMqtt() const;
+  void InitSsl();
+  static int SslErrorCallback(const char *error, size_t len, void *context);
+
+
+
+
  private:
   using DeviceList =  std::map<std::string, std::unique_ptr<SparkplugDevice>, util::string::IgnoreCase>;
 
   uint64_t bd_sequence_number_ = 0; ///< Birth/Death sequence number
+  std::atomic<uint8_t> sequence_number_ = 0; ///< Message sequence number. The range is 0-255.
 
   enum class NodeState {
     Idle,             ///< Initial state, wait on in-service
@@ -105,6 +130,8 @@ class SparkplugNode : public IPubSubClient {
   using NodeList = std::vector< std::unique_ptr<IPubSubClient> >;
   NodeList node_list_; ///< List of external host and nodes
   mutable std::recursive_mutex list_mutex_;
+
+
 
   SparkplugHost* GetHost(const std::string& host_id);
   SparkplugNode* GetNode(const std::string& group_id, const std::string& node_id);
@@ -146,6 +173,8 @@ class SparkplugNode : public IPubSubClient {
   void AssignAliasNumbers();
 
   [[nodiscard]] bool IsHostOnline() const;
+
+
 };
 
 } // pub_sub

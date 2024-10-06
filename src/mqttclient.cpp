@@ -7,14 +7,17 @@
 #include <chrono>
 #include <functional>
 
-#include "util/logstream.h"
-#include "util/utilfactory.h"
+
+#include <util/logstream.h>
+#include <util/utilfactory.h>
+
 
 #include "mqtttopic.h"
 #include "sparkplughelper.h"
 
 using namespace std::chrono_literals;
 using namespace util::log;
+
 
 namespace {
 
@@ -87,6 +90,7 @@ bool MqttClient::IsConnected() const {
 }
 
 bool MqttClient::Start() {
+  InitMqtt();
   // Create the worker task
   stop_client_task_ = true;
   if (work_thread_.joinable()) {
@@ -191,6 +195,15 @@ bool MqttClient::SendConnect() {
     connect_options.onFailure = nullptr;
     connect_options.onSuccess5 = OnConnect5;
     connect_options.onFailure5 = OnConnectFailure5;
+  }
+  if (!username_.empty() && !password_.empty()) {
+    connect_options.username = username_.c_str();
+    connect_options.password = password_.c_str();
+  }
+
+  if (Transport() == TransportLayer::MqttTcpTls || Transport() == TransportLayer::MqttWebSocketTls) {
+    InitSsl(); // Fill the ssl_options_ structure with values
+    connect_options.ssl = &ssl_options_;
   }
 
   const auto connect = MQTTAsync_connect(handle_, &connect_options);
@@ -698,7 +711,6 @@ void MqttClient::ClientTask() {
 
 void MqttClient::StartSubscription() {
   for (const std::string& topic : subscription_list_ ) {
-    auto qos = DefaultQualityOfService();
 
     MQTTAsync_responseOptions options = MQTTAsync_responseOptions_initializer;
     if (Version() == ProtocolVersion::Mqtt5) {
@@ -804,5 +816,54 @@ void MqttClient::DoWaitOnDisconnect() {
   }
 }
 
+void MqttClient::InitMqtt() const {
+  static bool done_init = false;
+  if (!done_init) {
+    MQTTAsync_init_options init_options = MQTTAsync_init_options_initializer;
+    if (Transport() == TransportLayer::MqttTcpTls || Transport() == TransportLayer::MqttWebSocketTls) {
+      init_options.do_openssl_init = 1;
+    }
+    MQTTAsync_global_init(&init_options);
+    done_init = true;
+  }
+}
+
+void MqttClient::InitSsl() {
+  ssl_options_ = MQTTAsync_SSLOptions_initializer;
+  if (!trust_store_.empty()) {
+    ssl_options_.trustStore = trust_store_.c_str();
+  }
+  if (!key_store_.empty()) {
+    ssl_options_.keyStore = key_store_.c_str();
+  }
+  if (!private_key_.empty()) {
+    ssl_options_.privateKey = private_key_.c_str();
+  }
+  if (!private_key_password_.empty()) {
+    ssl_options_.privateKeyPassword = private_key_password_.c_str();
+  }
+  if (!enabled_cipher_suites_.empty()) {
+    ssl_options_.enabledCipherSuites = enabled_cipher_suites_.c_str();
+  }
+  ssl_options_.enableServerCertAuth = enable_cert_auth_ ? 1 : 0;
+  ssl_options_.sslVersion = ssl_version_;
+  if (!ca_path_.empty()) {
+    ssl_options_.CApath = ca_path_.c_str();
+  }
+  ssl_options_.ssl_error_cb = SslErrorCallback;
+  ssl_options_.ssl_error_context = this;
+  ssl_options_.disableDefaultTrustStore = disable_default_trust_store_ ? 1 : 0;
+}
+
+int MqttClient::SslErrorCallback(const char *error, size_t len, void *) {
+  if (len == 0 || error == nullptr) {
+    return 0;
+  }
+  std::string err(len,'\0');
+  memcpy(err.data(), error, err.size());
+
+  LOG_ERROR() << err;
+  return 1;
+}
 
 } // end namespace

@@ -40,7 +40,7 @@ SparkplugHost::~SparkplugHost() {
 }
 
 bool SparkplugHost::Start() {
-
+  InitMqtt();
   // Set the start time when starting the host.
   start_time_ = SparkplugHelper::NowMs();
 
@@ -94,10 +94,11 @@ bool SparkplugHost::Start() {
       break;
   }
   connect_string << Broker() << ":" << Port();
-
-  if (const auto create = MQTTAsync_create(&handle_, connect_string.str().c_str(),
+  MQTTAsync_createOptions create_options = MQTTAsync_createOptions_initializer5;
+  if (const auto create = MQTTAsync_createWithOptions(&handle_, connect_string.str().c_str(),
                                        name_.c_str(),
-                                       MQTTCLIENT_PERSISTENCE_NONE, nullptr);
+                                       MQTTCLIENT_PERSISTENCE_NONE, nullptr,
+                                       Version() == ProtocolVersion::Mqtt5 ? &create_options : nullptr);
       create != MQTTASYNC_SUCCESS) {
     std::ostringstream err;
     err << "Failed to create the MQTT handle.";
@@ -294,13 +295,34 @@ bool SparkplugHost::SendConnect() {
   will_options.payload.data = body.data();
 
   MQTTAsync_connectOptions connect_options = MQTTAsync_connectOptions_initializer;
+  if (Version() == ProtocolVersion::Mqtt5) {
+    connect_options = MQTTAsync_connectOptions_initializer5;
+  }
   connect_options.keepAliveInterval = 60; // 60 seconds between keep alive messages
-  connect_options.cleansession = MQTTASYNC_TRUE;
+  //connect_options.cleansession = MQTTASYNC_TRUE;
   connect_options.connectTimeout = 10; // Wait max 10 seconds on connect.
   connect_options.onSuccess = OnConnect;
   connect_options.onFailure = OnConnectFailure;
   connect_options.context = this;
+  if (Version() == ProtocolVersion::Mqtt5) {
+    connect_options.MQTTVersion = MQTTVERSION_5;
+    connect_options.onSuccess = nullptr;
+    connect_options.onFailure = nullptr;
+    connect_options.onSuccess5 = OnConnect5;
+    connect_options.onFailure5 = OnConnectFailure5;
+  }
+  connect_options.automaticReconnect = 0; // No automatic reconnect
+  connect_options.retryInterval = 0;
+  connect_options.will = &will_options;
 
+  if (!username_.empty() && !password_.empty()) {
+    connect_options.username = username_.c_str();
+    connect_options.password = password_.c_str();
+  }
+  if (Transport() == TransportLayer::MqttTcpTls || Transport() == TransportLayer::MqttWebSocketTls) {
+    InitSsl(); // Fill the ssl_options_ structure with values
+    connect_options.ssl = &ssl_options_;
+  }
   ResetDelivered();
   ResetConnectionLost();
 

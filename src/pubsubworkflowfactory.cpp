@@ -18,7 +18,7 @@ PubSubWorkflowFactory::PubSubWorkflowFactory()
 
 
 }
-std::unique_ptr<workflow::ITask> PubSubWorkflowFactory::CreateRunner(const workflow::ITask &source) const {
+std::unique_ptr<workflow::ITask> PubSubWorkflowFactory::CreateTask(const workflow::ITask &source) const {
   std::unique_ptr<ITask> task;
   const auto& template_name = source.Template();
   return task;

@@ -10,6 +10,7 @@
 #include <memory>
 #include <MQTTAsync.h>
 #include <util/ilisten.h>
+#include <util/ixmlnode.h>
 #include "pubsub/ipubsubclient.h"
 #include "sparkplughelper.h"
 
@@ -59,6 +60,8 @@ class MqttClient : public IPubSubClient {
 
   std::atomic<bool> delivered_ = false;
 
+  MQTTAsync_SSLOptions ssl_options_ = MQTTAsync_SSLOptions_initializer;
+
   void ResetDelivered() { delivered_ = false;}
   void SetDelivered() { delivered_ = true; }
   [[nodiscard]] bool IsDelivered() const { return delivered_; }
@@ -80,12 +83,15 @@ class MqttClient : public IPubSubClient {
   void ConnectionLost(const std::string& cause);
   void Message(const std::string& topic_name, const MQTTAsync_message& message);
   void DeliveryComplete(MQTTAsync_token token);
+
   void Connect(const MQTTAsync_successData& response);
   void ConnectFailure(const MQTTAsync_failureData* response);
   void Connect5(const MQTTAsync_successData5& response);
   void ConnectFailure5(const MQTTAsync_failureData5* response);
+
   void SubscribeFailure(const MQTTAsync_failureData& response);
   void SubscribeFailure5(const MQTTAsync_failureData5& response);
+
   void Disconnect(const MQTTAsync_successData* response);
   void DisconnectFailure(const MQTTAsync_failureData* response);
   void Disconnect5(const MQTTAsync_successData5* response);
@@ -94,6 +100,7 @@ class MqttClient : public IPubSubClient {
   static void OnConnectionLost(void *context, char *cause);
   static int OnMessageArrived(void* context, char* topic_name, int topicLen, MQTTAsync_message* message);
   static void OnDeliveryComplete(void *context, MQTTAsync_token token);
+
   static void OnConnect(void* context, MQTTAsync_successData* response);
   static void OnConnectFailure(void* context, MQTTAsync_failureData* response);
   static void OnConnect5(void* context, MQTTAsync_successData5* response);
@@ -101,10 +108,16 @@ class MqttClient : public IPubSubClient {
 
   static void OnSubscribeFailure(void *context, MQTTAsync_failureData *response);
   static void OnSubscribeFailure5(void *context, MQTTAsync_failureData5 *response);
+
   static void OnDisconnect(void* context, MQTTAsync_successData* response);
   static void OnDisconnectFailure(void* context, MQTTAsync_failureData* response);
   static void OnDisconnect5(void* context, MQTTAsync_successData5* response);
   static void OnDisconnectFailure5(void* context, MQTTAsync_failureData5* response);
+
+  void InitMqtt() const;
+  void InitSsl();
+  static int SslErrorCallback(const char *error, size_t len, void *context);
+
 };
 
 

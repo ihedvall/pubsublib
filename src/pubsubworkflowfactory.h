@@ -13,7 +13,7 @@ namespace pub_sub {
 class PubSubWorkflowFactory : public workflow::ITaskFactory {
  public:
   PubSubWorkflowFactory();
-  [[nodiscard]] std::unique_ptr<workflow::ITask> CreateRunner(const workflow::ITask& source) const override;
+  [[nodiscard]] std::unique_ptr<workflow::ITask> CreateTask(const workflow::ITask& source) const override;
 
 };
 

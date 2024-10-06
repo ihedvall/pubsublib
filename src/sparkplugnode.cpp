@@ -32,6 +32,7 @@ constexpr std::string_view kHardwareMake = "Properties/Hardware Make";
 constexpr std::string_view kHardwareModel = "Properties/Hardware Model";
 constexpr std::string_view kOs = "Properties/OS";
 constexpr std::string_view kOsVersion = "Properties/OS Version";
+constexpr std::string_view kMqttVersion = "Properties/MQTT Version";
 
 constexpr std::string_view kState = "STATE";
 
@@ -106,12 +107,6 @@ int SparkplugNode::OnMessageArrived(void* context, char* topic_name,
   return MQTTASYNC_TRUE;
 }
 
-void SparkplugNode::OnDeliveryComplete(void *context, MQTTAsync_token token) {
-  auto *node = reinterpret_cast<SparkplugNode *>(context);
-  if (node != nullptr) {
-    node->DeliveryComplete(token);
-  }
-}
 
 void SparkplugNode::OnConnect(void* context, MQTTAsync_successData* response) {
   auto *node = reinterpret_cast<SparkplugNode *>(context);
@@ -127,11 +122,31 @@ void SparkplugNode::OnConnectFailure(void* context, MQTTAsync_failureData* respo
   }
 }
 
+void SparkplugNode::OnConnect5(void* context, MQTTAsync_successData5* response) {
+  auto *node = reinterpret_cast<SparkplugNode *>(context);
+  if (node != nullptr && response != nullptr) {
+    node->Connect5(*response);
+  }
+}
+
+void SparkplugNode::OnConnectFailure5(void* context, MQTTAsync_failureData5* response) {
+  auto *node = reinterpret_cast<SparkplugNode *>(context);
+  if (node != nullptr && response != nullptr) {
+    node->ConnectFailure5(*response);
+  }
+}
+
 void SparkplugNode::OnSubscribeFailure(void *context, MQTTAsync_failureData *response) {
   auto *node = reinterpret_cast<SparkplugNode *>(context);
   if (node != nullptr && response != nullptr) {
     node->SubscribeFailure(*response);
+  }
+}
 
+void SparkplugNode::OnSubscribeFailure5(void *context, MQTTAsync_failureData5 *response) {
+  auto *node = reinterpret_cast<SparkplugNode *>(context);
+  if (node != nullptr && response != nullptr) {
+    node->SubscribeFailure5(*response);
   }
 }
 
@@ -149,6 +164,20 @@ void SparkplugNode::OnDisconnectFailure(void* context, MQTTAsync_failureData* re
   auto *node = reinterpret_cast<pub_sub::SparkplugNode *>(context);
   if (node != nullptr && response != nullptr) {
     node->DisconnectFailure(*response);
+  }
+}
+
+void SparkplugNode::OnDisconnect5(void* context, MQTTAsync_successData5* response) {
+  auto *node = reinterpret_cast<pub_sub::SparkplugNode *>(context);
+  if (node != nullptr && response != nullptr) {
+    node->Disconnect5(*response);
+  }
+}
+
+void SparkplugNode::OnDisconnectFailure5(void* context, MQTTAsync_failureData5* response) {
+  auto *node = reinterpret_cast<pub_sub::SparkplugNode *>(context);
+  if (node != nullptr && response != nullptr) {
+    node->DisconnectFailure5(*response);
   }
 }
 
@@ -206,6 +235,60 @@ void SparkplugNode::ConnectFailure(const MQTTAsync_failureData &response) {
   node_event_.notify_one();
 }
 
+void SparkplugNode::Connect5(const MQTTAsync_successData5 &response) {
+  const auto& info = response.alt.connect;
+  server_uri_ = info.serverURI != nullptr ? info.serverURI : std::string();
+  server_version_ = info.MQTTVersion;
+  switch (server_version_) {
+
+    case MQTTVERSION_3_1:
+      Version(ProtocolVersion::Mqtt31);
+      break;
+
+    case MQTTVERSION_5:
+      Version(ProtocolVersion::Mqtt5);
+      break;
+
+    case MQTTVERSION_3_1_1:
+    case MQTTVERSION_DEFAULT:
+    default:
+      Version(ProtocolVersion::Mqtt311);
+      break;
+  }
+
+  server_session_ = info.sessionPresent;
+
+  if (listen_ && listen_->IsActive()) {
+    listen_->ListenText("Connected. URI: %s, Version: %d, Session: %d",
+                        server_uri_.c_str(), server_version_, server_session_);
+  }
+  LOG_INFO() << "Connected. Server: " << server_uri_;
+
+
+  SetDelivered();
+
+  node_event_.notify_one();
+}
+
+void SparkplugNode::ConnectFailure5(const MQTTAsync_failureData5 &response) {
+  std::ostringstream err;
+  err << "Failed to connect to the MQTT broker.";
+  const auto* cause = MQTTAsync_strerror(response.code);
+  if (cause != nullptr && strlen(cause) > 0) {
+    err << " Error: " << cause << ".";
+  }
+  if (response.message != nullptr) {
+    err << " Message: " << response.message;
+  }
+  LOG_ERROR() << err.str();
+
+  if (listen_ && listen_->IsActive()) {
+    listen_->ListenText("%s", err.str().c_str());
+  }
+  SetDelivered();
+  node_event_.notify_one();
+}
+
 void SparkplugNode::ConnectionLost(const std::string& reason) {
   std::ostringstream err;
   err << "Connection lost. Reason: " << reason;
@@ -217,7 +300,7 @@ void SparkplugNode::ConnectionLost(const std::string& reason) {
   }
 }
 
-void SparkplugNode::SubscribeFailure(MQTTAsync_failureData &response) {
+void SparkplugNode::SubscribeFailure(const MQTTAsync_failureData &response) {
   std::ostringstream err;
   err << "Subscribe Failure. Error: " << MQTTAsync_strerror(response.code);
   if (response.message != nullptr) {
@@ -229,6 +312,17 @@ void SparkplugNode::SubscribeFailure(MQTTAsync_failureData &response) {
   LOG_ERROR() << err.str();
 }
 
+void SparkplugNode::SubscribeFailure5(const MQTTAsync_failureData5 &response) {
+  std::ostringstream err;
+  err << "Subscribe Failure. Error: " << MQTTAsync_strerror(response.code);
+  if (response.message != nullptr) {
+    err << ". Message: " << response.message;
+  }
+  if (listen_ && listen_->IsActive()) {
+    listen_->ListenText("%s", err.str().c_str() );
+  }
+  LOG_ERROR() << err.str();
+}
 
 void SparkplugNode::Message(const std::string& topic_name, const MQTTAsync_message& message) {
   if (message.payloadlen < 0) {
@@ -348,17 +442,8 @@ void SparkplugNode::Message(const std::string& topic_name, const MQTTAsync_messa
 
 }
 
-void SparkplugNode::DeliveryComplete(MQTTAsync_token token) {
- delivered_ = true;
-
- node_event_.notify_one();
-
- if (listen_ && listen_->IsActive() ) {
-    listen_->ListenText("Delivered Token: %d", token);
-  }
-}
-
 bool SparkplugNode::Start() {
+  InitMqtt();
   // Create the worker task
   if (work_thread_.joinable()) {
     work_thread_.join();
@@ -466,11 +551,14 @@ bool SparkplugNode::CreateNode() {
   }
   connect_string << Broker() << ":" << Port();
   if (listen_ && listen_->IsActive()) {
-    listen_->ListenText("Creating Host");
+    listen_->ListenText("Creating Node");
   }
-  const auto create = MQTTAsync_create(&handle_, connect_string.str().c_str(),
+  MQTTAsync_createOptions create_options = MQTTAsync_createOptions_initializer5;
+
+  const auto create = MQTTAsync_createWithOptions(&handle_, connect_string.str().c_str(),
                                        name_.c_str(),
-                                       MQTTCLIENT_PERSISTENCE_NONE, nullptr);
+                                       MQTTCLIENT_PERSISTENCE_NONE, nullptr,
+                                       Version() == ProtocolVersion::Mqtt5 ? &create_options : nullptr);
   if (create != MQTTASYNC_SUCCESS) {
     std::ostringstream err;
     err << "Failed to create the MQTT handle.";
@@ -527,18 +615,35 @@ bool SparkplugNode::SendConnect() {
   will_options.qos = static_cast<int>(QualityOfService::Qos1); // Must be Qos1
 
   MQTTAsync_connectOptions connect_options = MQTTAsync_connectOptions_initializer;
+  if (Version() == ProtocolVersion::Mqtt5) {
+    connect_options = MQTTAsync_connectOptions_initializer5;
+  }
   connect_options.keepAliveInterval = 60; // 60 seconds between keep alive messages.
-  connect_options.cleansession = MQTTASYNC_TRUE; // Must not have a persistent connection.
+  // connect_options.cleansession = MQTTASYNC_TRUE; // Must not have a persistent connection.
   connect_options.connectTimeout = 10; // Wait max 10 seconds on connect.
   connect_options.onSuccess = OnConnect;
   connect_options.onFailure = OnConnectFailure;
   connect_options.context = this;
-
+  if (Version() == ProtocolVersion::Mqtt5) {
+    connect_options.MQTTVersion = MQTTVERSION_5;
+    connect_options.onSuccess = nullptr;
+    connect_options.onFailure = nullptr;
+    connect_options.onSuccess5 = OnConnect5;
+    connect_options.onFailure5 = OnConnectFailure5;
+  }
   connect_options.automaticReconnect = 0; // No automatic reconnect
   connect_options.retryInterval = 0;
 
   connect_options.will = &will_options;
 
+  if (!username_.empty() && !password_.empty()) {
+    connect_options.username = username_.c_str();
+    connect_options.password = password_.c_str();
+  }
+  if (Transport() == TransportLayer::MqttTcpTls || Transport() == TransportLayer::MqttWebSocketTls) {
+    InitSsl(); // Fill the ssl_options_ structure with values
+    connect_options.ssl = &ssl_options_;
+  }
   const auto connect = MQTTAsync_connect(handle_, &connect_options);
   if (connect != MQTTASYNC_SUCCESS) {
     LOG_ERROR()  << "Failed to connect to the MQTT broker. Error: " << MQTTAsync_strerror(connect);
@@ -629,9 +734,13 @@ void SparkplugNode::StartSubscription() {
     }
 
     MQTTAsync_responseOptions options = MQTTAsync_responseOptions_initializer;
-
-    options.onSuccess = OnSubscribe;
-    options.onFailure = OnSubscribeFailure;
+    if (Version() == ProtocolVersion::Mqtt5) {
+      options.onSuccess5 = nullptr; // No need of successful subscription
+      options.onFailure5 = OnSubscribeFailure5;
+    } else {
+      options.onSuccess = nullptr;
+      options.onFailure = OnSubscribeFailure;
+    }
     options.context = this;
 
 
@@ -662,10 +771,19 @@ ITopic *SparkplugNode::AddMetric(const std::shared_ptr<Metric> &value) {
 bool SparkplugNode::IsConnected() const {
   return handle_ != nullptr && MQTTAsync_isConnected(handle_);
 }
+
 void SparkplugNode::SendDisconnect() {
   MQTTAsync_disconnectOptions disconnect_options = MQTTAsync_disconnectOptions_initializer;
-  disconnect_options.onSuccess = OnDisconnect;
-  disconnect_options.onFailure = OnDisconnectFailure;
+  if (Version() == ProtocolVersion::Mqtt5) {
+    disconnect_options = MQTTAsync_disconnectOptions_initializer5;
+    disconnect_options.onSuccess = nullptr;
+    disconnect_options.onFailure = nullptr;
+    disconnect_options.onSuccess5 = OnDisconnect5;
+    disconnect_options.onFailure5 = OnDisconnectFailure5;
+  } else {
+    disconnect_options.onSuccess = OnDisconnect;
+    disconnect_options.onFailure = OnDisconnectFailure;
+  }
   disconnect_options.context = this;
   disconnect_options.timeout = 5000;
 
@@ -692,7 +810,7 @@ void SparkplugNode::SendDisconnect() {
   }
 }
 
-void SparkplugNode::Disconnect(MQTTAsync_successData&) {
+void SparkplugNode::Disconnect(const MQTTAsync_successData&) {
   if (listen_ && listen_->IsActive()) {
     listen_->ListenText("Node disconnected. Node: %s", Name().c_str());
   }
@@ -700,7 +818,31 @@ void SparkplugNode::Disconnect(MQTTAsync_successData&) {
   node_event_.notify_one();
 }
 
-void SparkplugNode::DisconnectFailure(MQTTAsync_failureData& response) {
+void SparkplugNode::DisconnectFailure(const MQTTAsync_failureData& response) {
+  std::ostringstream err;
+  err << "Disconnect failure.";
+  const int code = response.code;
+  const auto* cause = MQTTAsync_strerror(code);
+  if (cause != nullptr && strlen(cause) > 0) {
+    err << " Error: " << cause;
+  }
+
+  if (listen_ && listen_->IsActive()) {
+    listen_->ListenText("%s", err.str().c_str());
+  }
+  SetDelivered();
+  node_event_.notify_one();
+}
+
+void SparkplugNode::Disconnect5(const MQTTAsync_successData5&) {
+  if (listen_ && listen_->IsActive()) {
+    listen_->ListenText("Node disconnected. Node: %s", Name().c_str());
+  }
+  SetDelivered();
+  node_event_.notify_one();
+}
+
+void SparkplugNode::DisconnectFailure5(const MQTTAsync_failureData5& response) {
   std::ostringstream err;
   err << "Disconnect failure.";
   const int code = response.code;
@@ -1521,6 +1663,11 @@ void SparkplugNode::AddDefaultMetrics() {
     os_version->Value(OsVersion());
   }
 
+  auto mqtt_version = payload.CreateMetric(kMqttVersion.data());
+  if (mqtt_version) {
+    mqtt_version->Type(MetricType::String);
+    mqtt_version->Value(VersionAsString());
+  }
 }
 
 bool SparkplugNode::IsHostOnline() const {
@@ -1542,4 +1689,53 @@ bool SparkplugNode::IsHostOnline() const {
   return false;
 }
 
+void SparkplugNode::InitMqtt() const {
+  static bool done_init = false;
+  if (!done_init) {
+    MQTTAsync_init_options init_options = MQTTAsync_init_options_initializer;
+    if (Transport() == TransportLayer::MqttTcpTls || Transport() == TransportLayer::MqttWebSocketTls) {
+      init_options.do_openssl_init = 1;
+    }
+    MQTTAsync_global_init(&init_options);
+    done_init = true;
+  }
+}
+
+void SparkplugNode::InitSsl() {
+  ssl_options_ = MQTTAsync_SSLOptions_initializer;
+  if (!trust_store_.empty()) {
+    ssl_options_.trustStore = trust_store_.c_str();
+  }
+  if (!key_store_.empty()) {
+    ssl_options_.keyStore = key_store_.c_str();
+  }
+  if (!private_key_.empty()) {
+    ssl_options_.privateKey = private_key_.c_str();
+  }
+  if (!private_key_password_.empty()) {
+    ssl_options_.privateKeyPassword = private_key_password_.c_str();
+  }
+  if (!enabled_cipher_suites_.empty()) {
+    ssl_options_.enabledCipherSuites = enabled_cipher_suites_.c_str();
+  }
+  ssl_options_.enableServerCertAuth = enable_cert_auth_ ? 1 : 0;
+  ssl_options_.sslVersion = ssl_version_;
+  if (!ca_path_.empty()) {
+    ssl_options_.CApath = ca_path_.c_str();
+  }
+  ssl_options_.ssl_error_cb = SslErrorCallback;
+  ssl_options_.ssl_error_context = this;
+  ssl_options_.disableDefaultTrustStore = disable_default_trust_store_ ? 1 : 0;
+}
+
+int SparkplugNode::SslErrorCallback(const char *error, size_t len, void *) {
+  if (len == 0 || error == nullptr) {
+    return 0;
+  }
+  std::string err(len,'\0');
+  memcpy(err.data(), error, err.size());
+
+  LOG_ERROR() << err;
+  return 1;
+}
 } // pub_sub

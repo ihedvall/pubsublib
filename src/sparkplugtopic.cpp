@@ -29,6 +29,7 @@ void SparkplugTopic::DoPublish() {
     payload.GenerateJson();
   } else {
      // Payload is a protobuf data buffer
+     payload.SequenceNumber(parent_.NextSequenceNumber());
      payload.GenerateProtobuf();
   }
 
@@ -42,22 +43,24 @@ void SparkplugTopic::DoPublish() {
 
   MQTTAsync_responseOptions options = MQTTAsync_responseOptions_initializer;
   options.onSuccess = nullptr; // OnSend;
-  options.onFailure = OnSendFailure; // Note it just logging
+  if (parent_.Version() == ProtocolVersion::Mqtt5) {
+    options.onFailure5 = OnSendFailure5;
+  } else {
+    options.onFailure = OnSendFailure;
+  }
   options.context = this;
-  // options.token = parent_.GetUniqueToken();
 
-
+  const auto& topic_name  = Topic();
   auto* listen = parent_.Listen();
   if (listen != nullptr && listen->IsActive() && listen->LogLevel() == 3) {
-    const auto json = GetPayload().MakeJsonString();
-    const auto& topic_name  = SparkplugTopic::Topic();
+    const auto json = payload.MakeJsonString();
     listen->ListenText("Publish: %s: %s, %d",
-                       Topic().c_str(), json.c_str(), options.token );
+                       topic_name.c_str(), json.c_str(), static_cast<int>(payload.SequenceNumber()) );
   }
-  const auto send = MQTTAsync_sendMessage(parent_.Handle(), Topic().c_str(), &message, &options );
+  const auto send = MQTTAsync_sendMessage(parent_.Handle(), topic_name.c_str(), &message, &options );
   if (send != MQTTASYNC_SUCCESS) {
     if (listen != nullptr && listen->IsActive()) {
-      listen->ListenText("Publish Fail: %s", Topic().c_str());
+      listen->ListenText("Publish Fail: %s", topic_name.c_str());
     }
   }
 }
@@ -74,28 +77,15 @@ void SparkplugTopic::OnSendFailure(void *context, MQTTAsync_failureData *respons
   }
 }
 
-void SparkplugTopic::OnSend(void *context, MQTTAsync_successData *response) {
-  auto *topic = reinterpret_cast<SparkplugTopic *>(context);
-  if (topic != nullptr && response != nullptr) {
-    topic->SendComplete(*response);
-  }
-}
-
-void SparkplugTopic::OnSubscribeFailure(void *context, MQTTAsync_failureData *response) {
+void SparkplugTopic::OnSendFailure5(void *context, MQTTAsync_failureData5 *response) {
   auto *topic = reinterpret_cast<SparkplugTopic *>(context);
   if (topic != nullptr) {
     auto* listen = topic->parent_.Listen();
     if (listen != nullptr && listen->IsActive() && response != nullptr) {
-      listen->ListenText("Subscribe Failure: %s, Error: %s",
+      listen->ListenText("Publish Send Failure: %s, Error: %s",
                          topic->Topic().c_str(),
                          MQTTAsync_strerror(response->code));
     }
-  }
-}
-
-void SparkplugTopic::OnSubscribe(void *context, MQTTAsync_successData *response) {
-  auto *topic = reinterpret_cast<SparkplugTopic *>(context);
-  if (topic != nullptr) {
   }
 }
 

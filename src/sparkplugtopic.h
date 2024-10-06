@@ -27,9 +27,8 @@ class SparkplugTopic : public ITopic {
   void SendComplete(const MQTTAsync_successData& response);
 
   static void OnSendFailure(void *context, MQTTAsync_failureData *response);
-  static void OnSend(void *context, MQTTAsync_successData *response);
-  static void OnSubscribeFailure(void *context, MQTTAsync_failureData *response);
-  static void OnSubscribe(void *context, MQTTAsync_successData *response);
+  static void OnSendFailure5(void *context, MQTTAsync_failureData5 *response);
+
 
 };
 

@@ -17,6 +17,10 @@
 
 #include "pubsub/itopic.h"
 
+namespace util::xml {
+  class IXmlNode;
+}
+
 namespace pub_sub {
 
 enum class TransportLayer: int {
@@ -160,12 +164,21 @@ class IPubSubClient {
 
   [[nodiscard]] bool IsConnectionLost() const {return connection_lost_; }
 
+  void ConfigFile(const std::string& config_file) { config_file_ = config_file; };
+  [[nodiscard]] const std::string& ConfigFile() const { return config_file_; }
+
+  virtual bool ReadConfiguration();
+  virtual bool WriteConfiguration();
+
  protected:
 
   ProtocolVersion version_ = ProtocolVersion::Mqtt311; ///< Using version 3.1.1 as default.
   TransportLayer transport_ = TransportLayer::MqttTcp; ///< Defines the underlying transport protocol and encryption.
   std::string broker_ = "127.0.0.1"; ///< Address to the MQTT server (broker).
   uint16_t port_ = 1883; ///< The MQTT broker server port.
+
+
+
 
   std::string name_;  ///< Name of the client.
   std::string group_; ///< Group ID (Sparkplug B).
@@ -181,6 +194,8 @@ class IPubSubClient {
   std::atomic<bool> rebirth_ = false;
   std::atomic<bool> next_server_ = false;
   std::atomic<int64_t> scan_rate_ = 0; ///< Scan rate in ms.
+
+
   /** \brief If set to true, the node will wait for the SCADA host to go online.
    *
    * This boolean is used within in Sparkplug B environment. If set to true,
@@ -195,10 +210,29 @@ class IPubSubClient {
   TopicList topic_list_; ///< List of topics.
   std::list<std::string> subscription_list_;
 
+  std::string config_file_; ///< Full path to an XML configuration file
+
+  // Properties that are handled through a config file
+  std::string username_;
+  std::string password_;
+  std::string trust_store_;
+  std::string key_store_;
+  std::string private_key_;
+  std::string private_key_password_;
+  std::string enabled_cipher_suites_;
+  bool enable_cert_auth_ = false;
+  int ssl_version_ = 5;
+  std::string ca_path_;
+  bool disable_default_trust_store_ = false;
+
   void ResetConnectionLost() { connection_lost_ = false; }
   void SetConnectionLost() { connection_lost_ = true; }
   void AddSubscriptionFront(std::string topic_name);
 
+  void WriteGeneralXml(util::xml::IXmlNode& node) const;
+  void ReadGeneralXml(const util::xml::IXmlNode& node);
+  void WriteSslXml(util::xml::IXmlNode& ssl_node) const;
+  void ReadSslXml(const util::xml::IXmlNode& ssl_node);
 private:
 
   QualityOfService default_qos_ = QualityOfService::Qos1;
@@ -210,6 +244,8 @@ private:
    * any loss of connections during run-time.
    */
   std::atomic<bool> connection_lost_ = false;
+
+
 
 
 };
